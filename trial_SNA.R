@@ -256,13 +256,13 @@ metadata$week <- as.factor(metadata$week)
 
 #NB: here the first week correspond to the first seven days of data
 head(metadata)
-max(metadata$week)#14 weeks
+str(metadata$week)#14 weeks
 
 ####make network with gbi: select the rows corresponding to each week. 14 weeks, hence 14 networks
 ###week1
 which(metadata$week == 1)#from row 1 to 138
 
-gbi1 <- gbi[,1:138] #Is this the right way to make a network only for week1?
+gbi1 <- gbi[1:138,1:138] #Is this the right way to make a network only for week1?
 
 network_week1 <- get_network(gbi1, data_format="GBI",
                              association_index="SRI")
@@ -277,8 +277,6 @@ Tag <- V(net1)$name
 centrality_table1 <- data.frame(
   Tag = Tag,
   degree = net1_deg)
-
-print(centrality_table)
 
 #merge
 dc <- merge (centrality_table1, fd, by.x= "Tag")
@@ -316,7 +314,7 @@ ggplot(dcc_no_NA, aes(x = betweenness, y = Fledge.order)) +
 ###week2
 which(metadata$week == 2)#from row 139 to 559
 
-gbi2 <- gbi[139:559,] ##the matrix has only zeros --> weird
+gbi2 <- gbi[139:559,139:559] ##the matrix has only zeros --> weird
 network_week2 <- get_network(gbi2, data_format="GBI",
                              association_index="SRI") ##I cannot extract this network. 
 
@@ -372,5 +370,27 @@ gbi3 <- gbi[560:1388,]
 
 #etc up until week14. But is this the right way to do it? Not sure, doesn't seem right
 #Next step: see how ta make a gbi for each week
+
+
+#######What if changing the net.data.summer? --> takes to much time from my computer. My computer does not have enough power. 
+library(dplyr)
+library(forcats)
+net.data.summer <- subset(net.data.summer, net.data.summer$week>=4)
+str(net.data.summer$week)
+net.data.summer$week <- as.factor(net.data.summer$week)#11 levels, hence 11 weeks
+net.data.summer_bis <- net.data.summer %>%
+  mutate(week = fct_recode(week, "1" = "4", "2"= "5", "3" = "6", "4"= "7", "5"= "8", "6"= "9", "7"= "10", "8"= "11", "9"= "12", "10"= "13", "11"= "14"))
+
+#only for week1
+net.data.summer_bis1 <- subset(net.data.summer_bis, net.data.summer_bis$week==1)
+
+gmm.summer2 <- gmmevents(
+  time = net.data.summer_bis1$Date.Time,
+  identity = net.data.summer_bis1$PIT,
+  location = net.data.summer_bis1$location,
+  verbose = TRUE,
+  splitGroups = TRUE)
+#Then I could have used the gbi extracted from this, corresponding to only week1.
+#Is not feasible with my computer power. 
 
 
