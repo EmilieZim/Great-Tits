@@ -231,7 +231,9 @@ metadata$week <- week(parse_date_time(as.character(metadata$data), orders = "ydm
 
 
 ###Finally it works with:
+metadata$date <- substr(metadata$Start , 1, 6)
 metadata$date2 <- as.Date(metadata$date, format="%y%m%d", origin= "200505")#prob because my year is YY instead of YYYY
+#It actually worked once I shot down R so date2 and date3 are equivalent
 #lets change the $date so I have the year 2020 --> add 20000000 to each $date
 metadata$date3 <- 20000000 + metadata$date
 metadata$date2 <- as.Date(metadata$date3, format="%Y%m%d", origin= "20200505")#the year is still completely wrong, maybe the date has to be a character
@@ -246,8 +248,11 @@ metadata$week <- cut(metadata$date2, breaks = week_boundaries, labels = FALSE)
 # Convert the numeric labels to factors
 metadata$week <- as.factor(metadata$week)
 
-# Rename the factor levels 
-levels(metadata$week) <- paste("Week", levels(metadata$week), sep = "")
+# Rename the factor levels if necessary( once I ran everything again, this step was no longer needed)
+#metadata$week <- fct_recode(metadata$week,
+                          "week1" = "1",
+                          "week2" = "2",
+                          "week3" = "3") #etc up until week14
 
 #NB: here the first week correspond to the first seven days of data
 head(metadata)
@@ -257,7 +262,7 @@ max(metadata$week)#14 weeks
 ###week1
 which(metadata$week == 1)#from row 1 to 138
 
-gbi1 <- gbi[1:138] #Is this the right way to make a network only for week1?
+gbi1 <- gbi[,1:138] #Is this the right way to make a network only for week1?
 
 network_week1 <- get_network(gbi1, data_format="GBI",
                              association_index="SRI")
@@ -269,14 +274,14 @@ plot(net1, edge.color= "black", vertex.label.cex= 0.5)
 Tag <- V(net1)$name
 
 # Create a data frame with individual names and degree values
-centrality_table <- data.frame(
+centrality_table1 <- data.frame(
   Tag = Tag,
   degree = net1_deg)
 
 print(centrality_table)
 
 #merge
-dc <- merge (centrality_table, fd, by.x= "Tag")
+dc <- merge (centrality_table1, fd, by.x= "Tag")
 
 #plot 
 dc$Fledge.order <- as.factor(dc$Fledge.order)
@@ -294,11 +299,11 @@ ggplot(dc_no_NA, aes(x = degree, y = Fledge.order)) +
 #plotting with betweenness centrality
 btw_net1 <- betweenness(net1,v = V(net1),directed = F)
 
-betweenness_table <- data.frame(
+betweenness_table1 <- data.frame(
   Tag = Tag,
   betweenness = btw_net1)
 
-dcc <- merge (betweenness_table, dc, by.x= "Tag")
+dcc <- merge (betweenness_table1, dc, by.x= "Tag")
 dcc$Fledge.order <- as.factor(dcc$Fledge.order)
 
 dcc_no_NA <- na.omit(dcc)
@@ -311,17 +316,61 @@ ggplot(dcc_no_NA, aes(x = betweenness, y = Fledge.order)) +
 ###week2
 which(metadata$week == 2)#from row 139 to 559
 
-gbi2 <- gbi[139:559] ##the matrix has only zeros --> weird
+gbi2 <- gbi[139:559,] ##the matrix has only zeros --> weird
 network_week2 <- get_network(gbi2, data_format="GBI",
                              association_index="SRI") ##I cannot extract this network. 
 
+net2 <- graph_from_adjacency_matrix(network_week2,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+net2_deg <- degree(net2)
+plot(net2, edge.color= "black", vertex.label.cex= 0.5) #it doesn't seem right
 
+Tag <- V(net2)$name
+
+# Create a data frame with individual names and degree values
+centrality_table2 <- data.frame(
+  Tag = Tag,
+  degree = net2_deg)
+
+print(centrality_table2)
+
+#merge
+dc2 <- merge (centrality_table2, fd, by.x= "Tag")
+
+#plot 
+dc2$Fledge.order <- as.factor(dc2$Fledge.order)
+str(dc2$Fledge.order)
+str(dc2$degree)
+dc2_no_NA <- na.omit(dc2)
+
+library(ggplot2)
+ggplot(dc2_no_NA, aes(x = degree, y = Fledge.order)) +
+  geom_point() +
+  labs(title = "Scatter Plot of Degree Centrality and Fledge Order of week2",
+       x = "Degree Centrality",
+       y = "Fledge Order")
+
+#plotting with betweenness centrality
+btw_net2 <- betweenness(net2,v = V(net2),directed = F)
+
+betweenness_table2 <- data.frame(
+  Tag = Tag,
+  betweenness = btw_net2)
+
+dcc2 <- merge (betweenness_table2, dc, by.x= "Tag")
+dcc2$Fledge.order <- as.factor(dcc2$Fledge.order)
+
+dcc2_no_NA <- na.omit(dcc2)
+ggplot(dcc2_no_NA, aes(x = betweenness, y = Fledge.order)) +
+  geom_point() +
+  labs(title = "Scatter Plot of Betweenness Centrality and Fledge Order of week2",
+       x = "Betweenness Centrality",
+       y = "Fledge Order")
 
 ####
 which(metadata$week == 3)
-gbi3 <- gbi[560:1388]
+gbi3 <- gbi[560:1388,]
 
 #etc up until week14. But is this the right way to do it? Not sure, doesn't seem right
-
+#Next step: see how ta make a gbi for each week
 
 
