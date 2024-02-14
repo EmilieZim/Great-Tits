@@ -157,6 +157,132 @@ ggplot(data_cc_no_NA, aes(x = betweenness, y = Fledge.order)) +
 ###density of the social network
 edge_density(net, loops=F)#0.2446093 --> seems quite low
 
+###Regression models
+#fledge order = ordinal + has to be centered around zero (use scale function for this)
+#control for weight
+
+#make Fledge.order ordinal (1<2<3<4<5<6<7)
+head(data_cc_no_NA)
+str(data_cc_no_NA$Fledge.order)
+data_cc_no_NA$Fledge.order <- factor(data_cc_no_NA$Fledge.order, levels=c(1,2,3,4,5,6,7))
+levels(data_cc_no_NA$Fledge.order)
+
+#1. density centrality
+par(mfrow = c(1,1))
+hist(data_cc_no_NA$degree) #--> not very Gaussian
+model1 <- lm(degree ~ Chick.weight + Fledge.order + Chick.weight*Fledge.order, data= data_cc_no_NA)
+summary(model1)
+require("rgl")
+library(ggResidpanel)
+resid_panel(model1, plots = c("yvp","resid","boxplot","qq"), smoother = TRUE)          
+resid_xpanel(model1, smoother = TRUE)
+par(mfrow = c(2,2))
+plot(model1)
+
+#Remove the interaction as it is not significant
+model1_2 <- lm(degree ~ Chick.weight + Fledge.order, data= data_cc_no_NA)
+summary(model1_2) #low linear relationship since the adjusted R square is negative
+#Chick.weight is not significant, can be left out of the model
+par(mfrow = c(2,2))
+plot(model1_2)#there seem to be outliers
+resid_panel(model1_2, plots = c("yvp","resid","boxplot","qq"), smoother = TRUE)# "yvp" is not horizontal  
+shapiro.test(residuals(model1_2))#p-val= 0.4 --> normal
+ggplot() + aes(sample = resid(model1_2)) + geom_qq() + geom_qq_line() #normality seems respected
+ggplot() + aes(x = predict(model1_2), y = resid(model1_2)) + geom_point() +
+  geom_smooth(se = FALSE) + geom_hline(yintercept = 0) #eventually linearity and homoscedasticity seem alright
+
+#When Chick.weight removed
+model1_3 <- lm(degree ~ Fledge.order, data= data_cc_no_NA)
+summary(model1_3) #low linear relationship since the adjusted R square is negative
+par(mfrow = c(2,2))
+plot(model1_3)#there seem to be outliers (observation 133 &nd 124)
+resid_panel(model1_3, plots = c("yvp","resid","boxplot","qq"), smoother = TRUE)# "yvp" is not horizontal  
+shapiro.test(residuals(model1_3))#p-val= 0.39 --> normal
+ggplot() + aes(sample = resid(model1_3)) + geom_qq() + geom_qq_line() #normality seems respected
+ggplot() + aes(x = predict(model1_3), y = resid(model1_3)) + geom_point() +
+  geom_smooth(se = FALSE) + geom_hline(yintercept = 0) 
+
+ggplot(model1_3) + aes(x = Fledge.order, y = degree)+ 
+  geom_jitter(width = 0.1, height = 0, alpha = 0.4) + 
+  stat_summary(geom = "point", fun = "mean",size = 3, shape = 3)+
+  geom_boxplot(width = 0.2, fill = "lightblue", alpha = 0.7)
+
+#if now the Fledge.order is scaled
+head(data_cc_no_NA)
+data_cc_no_NA$Fledge.order <- as.numeric(data_cc_no_NA$Fledge.order)
+data_cc_no_NA$scaled_Fo <- (data_cc_no_NA$Fledge.order - min(data_cc_no_NA$Fledge.order)) / (max(data_cc_no_NA$Fledge.order) - min(data_cc_no_NA$Fledge.order))
+model1_4 <- lm(degree ~ scaled_Fo + Chick.weight, data= data_cc_no_NA) #Chick.weight is not significant, can leave it out
+summary(model1_4)
+model1_5 <- lm(degree ~ scaled_Fo, data= data_cc_no_NA) 
+summary(model1_5)
+par(mfrow = c(2,2))
+plot(model1_5)
+resid_panel(model1_5, plots = c("yvp","resid","boxplot","qq"), smoother = TRUE)# prob with normality 
+shapiro.test(residuals(model1_5))#p-val= 0.01 --> not normal
+ggplot() + aes(sample = resid(model1_5)) + geom_qq() + geom_qq_line() #normality not well respected
+
+#sqrt, log, log10, ^2 and 1/y transformations to assure normality did not work
+#Box-Cox transformation
+library(MASS)
+boxcox_result <- boxcox(lm(degree ~ scaled_Fo, data= data_cc_no_NA))
+lambda <- boxcox_result$scaled_Fo[which.max(boxcox_result$degree)]#does not work
+lambda <- boxcox_result$x[which.max(boxcox_result$y)]
+new_x_exact <- (scaled_Fo ^ lambda - 1) / lambda
+hist(new_x_exact)
+
+model1_7 <- lm(degree ~ new_x_exact, data= data_cc_no_NA)
+summary(model1_7)
+par(mfrow = c(2,2))
+plot(model1_7)
+resid_panel(model1_7, plots = c("yvp","resid","boxplot","qq"), smoother = TRUE)# prob with normality 
+shapiro.test(residuals(model1_7))#p-val= 0.02 --> best but still not normal
+ggplot() + aes(sample = resid(model1_7)) + geom_qq() + geom_qq_line() #normality not well respected
+
+#Box cox + log(y)
+hist(data_cc_no_NA$degree)
+hist(log10(data_cc_no_NA$degree))
+td <- log10(data_cc_no_NA$degree)
+model1_8 <- lm(td ~ new_x_exact, data= data_cc_no_NA)
+summary(model1_8)
+par(mfrow = c(2,2))
+plot(model1_8)
+resid_panel(model1_8, plots = c("yvp","resid","boxplot","qq"), smoother = TRUE)# prob with normality 
+shapiro.test(residuals(model1_8))#still not normal
+ggplot() + aes(sample = resid(model1_7)) + geom_qq() + geom_qq_line() 
+
+
+#2. betweenness centrality
+#immediately with scaled fledge order
+head(data_cc_no_NA)
+hist(data_cc_no_NA$betweenness) #--> not very Gaussian 
+m1 <- lm(betweenness ~ Chick.weight + scaled_Fo + Chick.weight*scaled_Fo, data= data_cc_no_NA)
+summary(m1)
+#leave out the interaction
+m2 <- lm(betweenness ~ Chick.weight + scaled_Fo, data= data_cc_no_NA)
+summary(m2) #the scaled fledge order is significant (p-val= 0.03)
+resid_panel(m2, plots = c("yvp","resid","boxplot","qq"), smoother = TRUE)          
+par(mfrow = c(2,2))
+plot(m2)
+shapiro.test(residuals(m2)) #absolutely not normal
+#leave chick.weight out because not significant
+m2_2 <- lm(betweenness ~  scaled_Fo, data= data_cc_no_NA)
+summary(m2_2)
+resid_panel(m2_2, plots = c("yvp","resid","boxplot","qq"), smoother = TRUE)          
+par(mfrow = c(2,2))
+plot(m2_2)
+shapiro.test(residuals(m2_2))#need to adjust the normality problem
+
+#no transformation of y resolves the normality issue
+#I tried sqrt, ^2, 1/y, 1/y+1, log, log10
+lb <- sqrt(data_cc_no_NA$betweenness)
+m3 <- lm(lb ~ scaled_Fo, data=data_cc_no_NA)
+summary(m3)
+resid_panel(m3, plots = c("yvp","resid","boxplot","qq"), smoother = TRUE)          
+par(mfrow = c(2,2))
+plot(m3)
+shapiro.test(residuals(m3))#not normal
+ggplot() + aes(sample = resid(m3)) + geom_qq() + geom_qq_line() #not the worst
+
 
 
 ####Networks for each week
