@@ -1,4 +1,5 @@
 
+
 #fledgling_data
 fd<- read.table("fledgling_data.txt",header = TRUE, fill = T, sep = "\t")
 View(fd)
@@ -28,12 +29,14 @@ net.data.summer <- subset(net.data.summer, net.data.summer$week>=4)
 
 # this is how you build groups from the data stream 
 # your laptop will likely not have enough memory to run this, so I sent you the output (gmm.summer)
-#gmm.summer <- gmmevents(
-time = net.data.summer$Date.Time,
-identity = net.data.summer$PIT,
-location = net.data.summer$location,
-verbose = TRUE,
-splitGroups = TRUE)
+
+# gmm.summer <- gmmevents(
+#   time = net.data.summer$Date.Time,
+#   identity = net.data.summer$PIT,
+#   location = net.data.summer$location,
+#   verbose = TRUE,
+#   splitGroups = TRUE
+# )
 
 # it's stored in an RData object which you can load
 load("gmm.summer.RData")
@@ -52,7 +55,7 @@ gmm.summer$B
 ###at a later stage we can think of creating weekly networks instead to see how the network positions change over time. 
 
 # install the package igraph and load the library
-install.packages("igraph")
+# install.packages("igraph")
 library("igraph")
 g <- make_graph(edges = c(1,2, 1,5), n=10, directed = FALSE)
 g
@@ -292,7 +295,8 @@ ggplot() + aes(sample = resid(m3)) + geom_qq() + geom_qq_line() #not the worst
 #The following code does not work, go forward up until the right code (row233)
 
 head(metadata)
-metadata$Date <- as.POSIXct(as.character(metadata$Start), format = "%Y%m%d%H%M%S") #does not work
+metadata$Date <- as.POSIXct(as.character(metadata$Start), format = "%y%m%d%H%M%S") #does not work
+# SW: the "y" needed to be small, not capitalized - should work now
 head(metadata)
 str(metadata$Start)
 metadata$Start<- as.character(metadata$Star)
@@ -358,7 +362,10 @@ metadata$week <- week(parse_date_time(as.character(metadata$data), orders = "ydm
 
 ###Finally it works with:
 metadata$date <- substr(metadata$Start , 1, 6)
-metadata$date2 <- as.Date(metadata$date, format="%y%m%d", origin= "200505")#prob because my year is YY instead of YYYY
+
+# SW: the following line should actually be correct - the origin thing is super confusing. 
+# it should be set to 01. Jan 1970 if it gives you troubles
+metadata$date2 <- as.Date(metadata$date, format="%y%m%d", origin= "01-01-1970")#prob because my year is YY instead of YYYY
 #It actually worked once I shot down R so date2 and date3 are equivalent
 #lets change the $date so I have the year 2020 --> add 20000000 to each $date
 metadata$date3 <- 20000000 + metadata$date
@@ -388,10 +395,31 @@ str(metadata$week)#14 weeks
 ###week1
 which(metadata$week == 1)#from row 1 to 138
 
-gbi1 <- gbi[1:138,1:138] #Is this the right way to make a network only for week1?
 
-network_week1 <- get_network(gbi1, data_format="GBI",
+gbi1 <- gbi[1:138,1:138] #Is this the right way to make a network only for week1?
+# SW: almost right!
+# It will be this:
+gbi1 <- gbi[1:138,]
+# you will need rows 1:138 (for week 1 as you have specified above), but you will need all the columns
+# since these are the individuals
+# while we're at it - it is good practise to subset the data set to those indivdiuals who have been
+# seen at least x times so that we have more robust estimates for their network position. 
+# we can for now set that to 5 (but we whould later do some sensitivity analyses to see how sensitive the
+# results are to a change in threshold to e.g. 8 or 10)
+# we can do this by using column sums - i.e. we only include columns (individuals) with a column sum
+# of at least 5
+
+threshold <- 5
+gbi1.sub <- gbi1[,colSums(gbi1)>=threshold]
+dim(gbi1.sub)
+# that gives you 138 rows and 12 columns (=individuals)
+
+
+
+network_week1 <- get_network(gbi1.sub, data_format="GBI",
                              association_index="SRI")
+
+# SW this is how far I've looked at the code.
 
 net1 <- graph_from_adjacency_matrix(network_week1,mode= c("undirected"), diag=FALSE, weighted=TRUE)
 net1_deg <- degree(net1)
