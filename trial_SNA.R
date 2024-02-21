@@ -878,9 +878,25 @@ class(fd_new)
 new_data<- left_join(table_week, fd_new, by="Tag")
 
 
+
+# SW: good start on all of this! 
+# Here some thoughts to keep you going:
+
+# 1) I would recommend treating your fledge order variable as a scaled variable in all your models (-> value between -0.5-0.5), since the factors of 1-7 are not biologically meaningful.
+
+# 2) Have you checked for multicollinearity of your predictors (fledge order and fledge weight)? It can greatly mess up your model if they are correlated. Tip here is to calculate the 'variance inflation factor'. Should be straight forward to google it. Then only include both measures if their VIF is appropriate.
+
 # 3) I'm not sure if it is worth spending too much time on the model that includes the full network (rather than separated into weeks), since the data set ends up being quite messy (if fledglings die), and relatively small. You have also seen that it is a pretty terrible fit and the residual distribution quite tricky. I would therefore suggest that you try to get your weekly values into analysable format: col 1: week; col 2: Tag; col 3: weekly betweenness; col 4: weekly degree; col 5: scaled fledge order; col 6: fledge weight; col 7: family, 8: time since fledging (the order can of course be different)
 # for the last one (time since fledging): we should include this as a measure of age. See if you can calculate this from the data (fd). The column 'fledged' will be useful - the units are the number of days since the 1st of April. 
 # Using the weekly network allows you to only include the individuals that were actually present and alive during that week (which makes the data a lot more accurate). And you are correct, the chicks only started to enter the population in week 4. 
+
+# 4) The models you would be looking at then are *mixed effects models* that take into account repeated measures of the same individual, and it also allows us to include an effect of family (if for example chicks from Nest X are consistently more central because of a genetic effect). 
+# It would be specified something along those lines: centrality ~ rel.fledge order*scale(time.since.fledging) + (1|Tag) + (1|family:Tag)
+# And the equivalent for degree
+# If you feel brave, you can even read up on multivariate models that allow you to include both outcome variables at the same time: (centrality, degree) ~ ...
+# Here some keywords that will help get to the right model: multivariate regression; nested random effects; mixed effects models
+# I don't have a suggestion for a package per se - I usually use Bayesian regression for all of my models these days (package brms), since they are a little more versatile, but you can of course use others.
+
 
 # 4) The models you would be looking at then are *mixed effects models* that take into account repeated measures of the same individual, and it also allows us to include an effect of family (if for example chicks from Nest X are consistently more central because of a genetic effect). 
 # It would be specified something along those lines: centrality ~ rel.fledge order*scale(time.since.fledging) + (1|Tag) + (1|family:Tag)
