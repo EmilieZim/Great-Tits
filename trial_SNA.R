@@ -158,7 +158,12 @@ ggplot(data_cc_no_NA, aes(x = betweenness, y = Fledge.order)) +
 ###density of the social network
 edge_density(net, loops=F)#0.2446093 --> seems quite low
 
-
+#trying another way to plot
+ceb <- cluster_edge_betweenness(net)
+class(ceb)  
+plot(ceb, net)
+dendPlot(ceb, mode="hclust")
+#not very visual
 
 ####NETWORKS FOR EACH WEEK
 
@@ -325,6 +330,14 @@ centrality_table4 <- data.frame(
 dc4 <- merge(centrality_table4, fd, by.x= "Tag")
 #only 4 chicks included #not enough to look for degree and betweenness centrality
 
+btw_4 <- betweenness(net4,v = V(net4),directed = F)
+betweenness_table4 <- data.frame(
+  Tag = Tag,
+  betweenness = btw_4)
+
+table_week4 <- merge(centrality_table4,betweenness_table4, by.x= "Tag" )
+table_week4$Week <- 4 
+
 ###week5 
 which(metadata$week == 5)
 gbi5 <- gbi[2310:3044,]
@@ -350,8 +363,13 @@ centrality_table5 <- data.frame(
 dc5 <- merge(centrality_table5, fd, by.x= "Tag")
 
 dc5_chicks <- subset(dc5, dc5$Who=="Chick")#only 12 chicks
+btw_5 <- betweenness(net5,v = V(net5),directed = F)
+betweenness_table5 <- data.frame(
+  Tag = Tag,
+  betweenness = btw_5)
 
-
+table_week5 <- merge(centrality_table5,betweenness_table5, by.x= "Tag" )
+table_week5$Week <- 5 
 ###week6 
 #From week 6 a lot of Chicks start to appear --> would be interesting to start the linear model at week6
 which(metadata$week == 6)
@@ -386,12 +404,16 @@ ggplot(dc6_chicks, aes(x = degree, y = Fledge.order)) +
        x = "Degree Centrality",
        y = "Fledge Order")
 
-#plotting with betweenness centrality
-btw_net6 <- betweenness(net6,v = V(net6),directed = F)
+# betweenness centrality merge
+btw_6 <- betweenness(net6,v = V(net6),directed = F)
 betweenness_table6 <- data.frame(
   Tag = Tag,
-  betweenness = btw_net6)
+  betweenness = btw_6)
 
+table_week6 <- merge(centrality_table6,betweenness_table6, by.x= "Tag" )
+table_week6$Week <- 6 
+
+#plot
 dcc6 <- merge (betweenness_table6, dc6_chicks, by.x= "Tag")
 dcc6$Fledge.order <- as.factor(dcc6$Fledge.order)
 
@@ -400,6 +422,8 @@ ggplot(dcc6, aes(x = betweenness, y = Fledge.order)) +
   labs(title = "Scatter Plot of Betweenness Centrality and Fledge Order of week6",
        x = "Betweenness Centrality",
        y = "Fledge Order")
+
+
 
 ###week7 
 which(metadata$week == 7)
@@ -434,12 +458,16 @@ ggplot(dc7_chicks, aes(x = degree, y = Fledge.order)) +
        x = "Degree Centrality",
        y = "Fledge Order")
 
-#plotting with betweenness centrality
-btw_net7 <- betweenness(net7,v = V(net7),directed = F)
+# betweenness centrality
+btw_7 <- betweenness(net7,v = V(net7),directed = F)
 betweenness_table7 <- data.frame(
   Tag = Tag,
-  betweenness = btw_net7)
+  betweenness = btw_7)
 
+table_week7 <- merge(centrality_table7,betweenness_table7, by.x= "Tag" )
+table_week7$Week <- 7 
+
+#plot
 dcc7 <- merge (betweenness_table7, dc7_chicks, by.x= "Tag")
 dcc7$Fledge.order <- as.factor(dcc7$Fledge.order)
 ggplot(dcc7, aes(x = betweenness, y = Fledge.order)) +
@@ -481,12 +509,15 @@ ggplot(dc8_chicks, aes(x = degree, y = Fledge.order)) +
        x = "Degree Centrality",
        y = "Fledge Order")
 
-#plotting with betweenness centrality
-btw_net8 <- betweenness(net8,v = V(net8),directed = F)
+#betweenness centrality
+btw_8 <- betweenness(net8,v = V(net8),directed = F)
 betweenness_table8 <- data.frame(
   Tag = Tag,
-  betweenness = btw_net8)
+  betweenness = btw_8)
 
+table_week8 <- merge(centrality_table8,betweenness_table8, by.x= "Tag" )
+table_week8$Week <- 8 
+#plot
 dcc8 <- merge (betweenness_table8, dc8_chicks, by.x= "Tag")
 dcc8$Fledge.order <- as.factor(dcc8$Fledge.order)
 ggplot(dcc8, aes(x = betweenness, y = Fledge.order)) +
@@ -528,12 +559,16 @@ ggplot(dc9_chicks, aes(x = degree, y = Fledge.order)) +
        x = "Degree Centrality",
        y = "Fledge Order")
 
-#plotting with betweenness centrality
-btw_net9 <- betweenness(net9,v = V(net9),directed = F)
+#betweenness centrality
+btw_9 <- betweenness(net9,v = V(net9),directed = F)
 betweenness_table9 <- data.frame(
   Tag = Tag,
-  betweenness = btw_net9)
+  betweenness = btw_9)
 
+table_week9 <- merge(centrality_table9,betweenness_table9, by.x= "Tag" )
+table_week9$Week <- 9 
+
+#plot
 dcc9 <- merge (betweenness_table9, dc9_chicks, by.x= "Tag")
 dcc9$Fledge.order <- as.factor(dcc9$Fledge.order)
 ggplot(dcc9, aes(x = betweenness, y = Fledge.order)) +
@@ -574,12 +609,17 @@ ggplot(dc10_chicks, aes(x = degree, y = Fledge.order)) +
        x = "Degree Centrality",
        y = "Fledge Order")
 
-#plotting with betweenness centrality
-btw_net10 <- betweenness(net10,v = V(net10),directed = F)
+
+#betweenness centrality
+btw_10 <- betweenness(net10,v = V(net10),directed = F)
 betweenness_table10 <- data.frame(
   Tag = Tag,
-  betweenness = btw_net10)
+  betweenness = btw_10)
 
+table_week10 <- merge(centrality_table10,betweenness_table10, by.x= "Tag" )
+table_week10$Week <- 10 
+
+#plot
 dcc10 <- merge (betweenness_table10, dc10_chicks, by.x= "Tag")
 dcc10$Fledge.order <- as.factor(dcc10$Fledge.order)
 ggplot(dcc10, aes(x = betweenness, y = Fledge.order)) +
@@ -621,12 +661,16 @@ ggplot(dc11_chicks, aes(x = degree, y = Fledge.order)) +
        x = "Degree Centrality",
        y = "Fledge Order")
 
-#plotting with betweenness centrality
-btw_net11 <- betweenness(net11,v = V(net11),directed = F)
+#betweenness centrality
+btw_11 <- betweenness(net11,v = V(net11),directed = F)
 betweenness_table11 <- data.frame(
   Tag = Tag,
-  betweenness = btw_net11)
+  betweenness = btw_11)
 
+table_week11 <- merge(centrality_table11,betweenness_table11, by.x= "Tag" )
+table_week11$Week <- 11 
+
+#plot
 dcc11 <- merge (betweenness_table11, dc11_chicks, by.x= "Tag")
 dcc11$Fledge.order <- as.factor(dcc11$Fledge.order)
 ggplot(dcc11, aes(x = betweenness, y = Fledge.order)) +
@@ -667,12 +711,16 @@ ggplot(dc12_chicks, aes(x = degree, y = Fledge.order)) +
        x = "Degree Centrality",
        y = "Fledge Order")
 
-#plotting with betweenness centrality
-btw_net12 <- betweenness(net12,v = V(net12),directed = F)
+#betweenness centrality
+btw_12 <- betweenness(net12,v = V(net12),directed = F)
 betweenness_table12 <- data.frame(
   Tag = Tag,
-  betweenness = btw_net12)
+  betweenness = btw_12)
 
+table_week12 <- merge(centrality_table12,betweenness_table12, by.x= "Tag" )
+table_week12$Week <- 12 
+
+#plot
 dcc12 <- merge (betweenness_table11, dc12_chicks, by.x= "Tag")
 dcc12$Fledge.order <- as.factor(dcc12$Fledge.order)
 ggplot(dcc12, aes(x = betweenness, y = Fledge.order)) +
@@ -713,12 +761,16 @@ ggplot(dc13_chicks, aes(x = degree, y = Fledge.order)) +
        x = "Degree Centrality",
        y = "Fledge Order")
 
-#plotting with betweenness centrality
-btw_net13 <- betweenness(net13,v = V(net13),directed = F)
+#betweenness centrality
+btw_13 <- betweenness(net13,v = V(net13),directed = F)
 betweenness_table13 <- data.frame(
   Tag = Tag,
-  betweenness = btw_net13)
+  betweenness = btw_13)
 
+table_week13 <- merge(centrality_table13,betweenness_table13, by.x= "Tag" )
+table_week13$Week <- 13 
+
+#plot
 dcc13 <- merge (betweenness_table13, dc13_chicks, by.x= "Tag")
 dcc13$Fledge.order <- as.factor(dcc13$Fledge.order)
 ggplot(dcc13, aes(x = betweenness, y = Fledge.order)) +
@@ -759,12 +811,16 @@ ggplot(dc14_chicks, aes(x = degree, y = Fledge.order)) +
        x = "Degree Centrality",
        y = "Fledge Order")
 
-#plotting with betweenness centrality
-btw_net14 <- betweenness(net14,v = V(net14),directed = F)
+#betweenness centrality
+btw_14 <- betweenness(net14,v = V(net14),directed = F)
 betweenness_table14 <- data.frame(
   Tag = Tag,
-  betweenness = btw_net14)
+  betweenness = btw_14)
 
+table_week14 <- merge(centrality_table14,betweenness_table14, by.x= "Tag" )
+table_week14$Week <- 14
+
+#plot
 dcc14 <- merge (betweenness_table14, dc14_chicks, by.x= "Tag")
 dcc14$Fledge.order <- as.factor(dcc14Fledge.order)
 ggplot(dcc14, aes(x = betweenness, y = Fledge.order)) +
@@ -787,123 +843,52 @@ str(data_cc_no_NA$Fledge.order)
 data_cc_no_NA$Fledge.order <- factor(data_cc_no_NA$Fledge.order, levels=c(1,2,3,4,5,6,7))
 levels(data_cc_no_NA$Fledge.order)
 
-#1. density centrality
-par(mfrow = c(1,1))
-hist(data_cc_no_NA$degree) #--> not very Gaussian
-model1 <- lm(degree ~ Chick.weight + Fledge.order + Chick.weight*Fledge.order, data= data_cc_no_NA)
-summary(model1)
-require("rgl")
-library(ggResidpanel)
-resid_panel(model1, plots = c("yvp","resid","boxplot","qq"), smoother = TRUE)          
-resid_xpanel(model1, smoother = TRUE)
-par(mfrow = c(2,2))
-plot(model1)
+## SW: 1) I would recommend treating your fledge order variable as a scaled variable in all your models (-> value between -0.5-0.5), since the factors of 1-7 are not biologically meaningful.
 
-#Remove the interaction as it is not significant
-model1_2 <- lm(degree ~ Chick.weight + Fledge.order, data= data_cc_no_NA)
-summary(model1_2) #low linear relationship since the adjusted R square is negative
-#Chick.weight is not significant, can be left out of the model
-par(mfrow = c(2,2))
-plot(model1_2)#there seem to be outliers
-resid_panel(model1_2, plots = c("yvp","resid","boxplot","qq"), smoother = TRUE)# "yvp" is not horizontal  
-shapiro.test(residuals(model1_2))#p-val= 0.4 --> normal
-ggplot() + aes(sample = resid(model1_2)) + geom_qq() + geom_qq_line() #normality seems respected
-ggplot() + aes(x = predict(model1_2), y = resid(model1_2)) + geom_point() +
-  geom_smooth(se = FALSE) + geom_hline(yintercept = 0) #eventually linearity and homoscedasticity seem alright
+#Scale Fledge.order 
+install.packages("scales")
+library(scales)
+fd_withoutNA <- na.omit(fd)
+fd_withoutNA$Fledge.order <- as.numeric(fd_withoutNA$Fledge.order)
+fd_withoutNA$scaled_FledgeOrder <- rescale(fd_withoutNA$Fledge.order, to= c(-0.5, 0.5))
+hist(fd_withoutNA$scaled_FledgeOrder)
 
-#When Chick.weight removed
-model1_3 <- lm(degree ~ Fledge.order, data= data_cc_no_NA)
-summary(model1_3) #low linear relationship since the adjusted R square is negative
-par(mfrow = c(2,2))
-plot(model1_3)#there seem to be outliers (observation 133 &nd 124)
-resid_panel(model1_3, plots = c("yvp","resid","boxplot","qq"), smoother = TRUE)# "yvp" is not horizontal  
-shapiro.test(residuals(model1_3))#p-val= 0.39 --> normal
-ggplot() + aes(sample = resid(model1_3)) + geom_qq() + geom_qq_line() #normality seems respected
-ggplot() + aes(x = predict(model1_3), y = resid(model1_3)) + geom_point() +
-  geom_smooth(se = FALSE) + geom_hline(yintercept = 0) 
+#make a new dataframe for the regressions
+# 2)I would therefore suggest that you try to get your weekly values into analysable format: 
+#col 1: week; col 2: Tag; col 3: weekly betweenness; col 4: weekly degree; col 5: scaled fledge order; col 6: fledge weight; col 7: family, 8: time since fledging (the order can of course be different)
+# for the last one (time since fledging): we should include this as a measure of age. See if you can calculate this from the data (fd). The column 'fledged' will be useful - the units are the number of days since the 1st of April. 
+# Using the weekly network allows you to only include the individuals that were actually present and alive during that week (which makes the data a lot more accurate). And you are correct, the chicks only started to enter the population in week 4. 
 
-ggplot(model1_3) + aes(x = Fledge.order, y = degree)+ 
-  geom_jitter(width = 0.1, height = 0, alpha = 0.4) + 
-  stat_summary(geom = "point", fun = "mean",size = 3, shape = 3)+
-  geom_boxplot(width = 0.2, fill = "lightblue", alpha = 0.7)
+#EZ: I start the new dataframe at week4 as the Chicks start to appear at that point in time
+#step1 -> merge all the table_weekX dataframes obtained seperatly for each week (see above)
+#they all have the same columns --> 
+table_week <- rbind(table_week4,table_week5, table_week6, table_week7, table_week8, table_week9, table_week10, table_week11, table_week12, table_week13, table_week14)
+class(table_week)
+View(table_week)
+#step2 choose only some columns of fd_withoutNA
+library(dplyr)
+fd_new <- fd_withoutNA %>%
+  select(Tag, scaled_FledgeOrder, Chick.weight, Fledged, Family)
+class(fd_new)
+#step3: merge table_week and fd_new by Tag, both are data.frames
+# 2) Have you checked for multicollinearity of your predictors (fledge order and fledge weight)? It can greatly mess up your model if they are correlated. Tip here is to calculate the 'variance inflation factor'. Should be straight forward to google it. Then only include both measures if their VIF is appropriate.
 
-#if now the Fledge.order is scaled
-head(data_cc_no_NA)
-data_cc_no_NA$Fledge.order <- as.numeric(data_cc_no_NA$Fledge.order)
-data_cc_no_NA$scaled_Fo <- (data_cc_no_NA$Fledge.order - min(data_cc_no_NA$Fledge.order)) / (max(data_cc_no_NA$Fledge.order) - min(data_cc_no_NA$Fledge.order))
-model1_4 <- lm(degree ~ scaled_Fo + Chick.weight, data= data_cc_no_NA) #Chick.weight is not significant, can leave it out
-summary(model1_4)
-model1_5 <- lm(degree ~ scaled_Fo, data= data_cc_no_NA) 
-summary(model1_5)
-par(mfrow = c(2,2))
-plot(model1_5)
-resid_panel(model1_5, plots = c("yvp","resid","boxplot","qq"), smoother = TRUE)# prob with normality 
-shapiro.test(residuals(model1_5))#p-val= 0.01 --> not normal
-ggplot() + aes(sample = resid(model1_5)) + geom_qq() + geom_qq_line() #normality not well respected
-
-#sqrt, log, log10, ^2 and 1/y transformations to assure normality did not work
-#Box-Cox transformation
-library(MASS)
-boxcox_result <- boxcox(lm(degree ~ scaled_Fo, data= data_cc_no_NA))
-lambda <- boxcox_result$scaled_Fo[which.max(boxcox_result$degree)]#does not work
-lambda <- boxcox_result$x[which.max(boxcox_result$y)]
-new_x_exact <- (scaled_Fo ^ lambda - 1) / lambda
-hist(new_x_exact)
-
-model1_7 <- lm(degree ~ new_x_exact, data= data_cc_no_NA)
-summary(model1_7)
-par(mfrow = c(2,2))
-plot(model1_7)
-resid_panel(model1_7, plots = c("yvp","resid","boxplot","qq"), smoother = TRUE)# prob with normality 
-shapiro.test(residuals(model1_7))#p-val= 0.02 --> best but still not normal
-ggplot() + aes(sample = resid(model1_7)) + geom_qq() + geom_qq_line() #normality not well respected
-
-#Box cox + log(y)
-hist(data_cc_no_NA$degree)
-hist(log10(data_cc_no_NA$degree))
-td <- log10(data_cc_no_NA$degree)
-model1_8 <- lm(td ~ new_x_exact, data= data_cc_no_NA)
-summary(model1_8)
-par(mfrow = c(2,2))
-plot(model1_8)
-resid_panel(model1_8, plots = c("yvp","resid","boxplot","qq"), smoother = TRUE)# prob with normality 
-shapiro.test(residuals(model1_8))#still not normal
-ggplot() + aes(sample = resid(model1_7)) + geom_qq() + geom_qq_line() 
+#new_data <- merge(table_week, fd_new, by.x= Tag, all.x = TRUE) #does not work as Tag is repeated for each ind from week1 to 10. Tag is therefore not unique anymore
+#what if left_join?
+new_data<- left_join(table_week, fd_new, by="Tag")
 
 
-#2. betweenness centrality
-#immediately with scaled fledge order
-head(data_cc_no_NA)
-hist(data_cc_no_NA$betweenness) #--> not very Gaussian 
-m1 <- lm(betweenness ~ Chick.weight + scaled_Fo + Chick.weight*scaled_Fo, data= data_cc_no_NA)
-summary(m1)
-#leave out the interaction
-m2 <- lm(betweenness ~ Chick.weight + scaled_Fo, data= data_cc_no_NA)
-summary(m2) #the scaled fledge order is significant (p-val= 0.03)
-resid_panel(m2, plots = c("yvp","resid","boxplot","qq"), smoother = TRUE)          
-par(mfrow = c(2,2))
-plot(m2)
-shapiro.test(residuals(m2)) #absolutely not normal
-#leave chick.weight out because not significant
-m2_2 <- lm(betweenness ~  scaled_Fo, data= data_cc_no_NA)
-summary(m2_2)
-resid_panel(m2_2, plots = c("yvp","resid","boxplot","qq"), smoother = TRUE)          
-par(mfrow = c(2,2))
-plot(m2_2)
-shapiro.test(residuals(m2_2))#need to adjust the normality problem
+# 3) I'm not sure if it is worth spending too much time on the model that includes the full network (rather than separated into weeks), since the data set ends up being quite messy (if fledglings die), and relatively small. You have also seen that it is a pretty terrible fit and the residual distribution quite tricky. I would therefore suggest that you try to get your weekly values into analysable format: col 1: week; col 2: Tag; col 3: weekly betweenness; col 4: weekly degree; col 5: scaled fledge order; col 6: fledge weight; col 7: family, 8: time since fledging (the order can of course be different)
+# for the last one (time since fledging): we should include this as a measure of age. See if you can calculate this from the data (fd). The column 'fledged' will be useful - the units are the number of days since the 1st of April. 
+# Using the weekly network allows you to only include the individuals that were actually present and alive during that week (which makes the data a lot more accurate). And you are correct, the chicks only started to enter the population in week 4. 
 
-#no transformation of y resolves the normality issue
-#I tried sqrt, ^2, 1/y, 1/y+1, log, log10
-lb <- sqrt(data_cc_no_NA$betweenness)
-m3 <- lm(lb ~ scaled_Fo, data=data_cc_no_NA)
-summary(m3)
-resid_panel(m3, plots = c("yvp","resid","boxplot","qq"), smoother = TRUE)          
-par(mfrow = c(2,2))
-plot(m3)
-shapiro.test(residuals(m3))#not normal
-ggplot() + aes(sample = resid(m3)) + geom_qq() + geom_qq_line() #not the worst
+# 4) The models you would be looking at then are *mixed effects models* that take into account repeated measures of the same individual, and it also allows us to include an effect of family (if for example chicks from Nest X are consistently more central because of a genetic effect). 
+# It would be specified something along those lines: centrality ~ rel.fledge order*scale(time.since.fledging) + (1|Tag) + (1|family:Tag)
+# And the equivalent for degree
 
-
+# 5) If you feel brave, you can even read up on multivariate models that allow you to include both outcome variables at the same time: (centrality, degree) ~ ...
+# Here some keywords that will help get to the right model: multivariate regression; nested random effects; mixed effects models
+# I don't have a suggestion for a package per se - I usually use Bayesian regression for all of my models these days (package brms), since they are a little more versatile, but you can of course use others.
 
 
 
