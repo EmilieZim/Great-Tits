@@ -853,11 +853,16 @@ fd_withoutNA$Fledge.order <- as.numeric(fd_withoutNA$Fledge.order)
 fd_withoutNA$scaled_FledgeOrder <- rescale(fd_withoutNA$Fledge.order, to= c(-0.5, 0.5))
 hist(fd_withoutNA$scaled_FledgeOrder)
 
+#Scale Fledged --> age at fledgling since the 1st of April
+fd_withoutNA$Fledged <- as.numeric(fd_withoutNA$Fledged)
+fd_withoutNA$time_since_fledgling <-scale(fd_withoutNA$Fledged)
+
 #make a new dataframe for the regressions
-# 2)I would therefore suggest that you try to get your weekly values into analysable format: 
+# 2)SW: I would therefore suggest that you try to get your weekly values into analysable format: 
 #col 1: week; col 2: Tag; col 3: weekly betweenness; col 4: weekly degree; col 5: scaled fledge order; col 6: fledge weight; col 7: family, 8: time since fledging (the order can of course be different)
 # for the last one (time since fledging): we should include this as a measure of age. See if you can calculate this from the data (fd). The column 'fledged' will be useful - the units are the number of days since the 1st of April. 
-# Using the weekly network allows you to only include the individuals that were actually present and alive during that week (which makes the data a lot more accurate). And you are correct, the chicks only started to enter the population in week 4. 
+# Using the weekly network allows you to only include the individuals that were actually present and alive during that week (which makes the data a lot more accurate). 
+#And you are correct, the chicks only started to enter the population in week 4. 
 
 #EZ: I start the new dataframe at week4 as the Chicks start to appear at that point in time
 #step1 -> merge all the table_weekX dataframes obtained seperatly for each week (see above)
@@ -868,43 +873,87 @@ View(table_week)
 #step2 choose only some columns of fd_withoutNA
 library(dplyr)
 fd_new <- fd_withoutNA %>%
-  select(Tag, scaled_FledgeOrder, Chick.weight, Fledged, Family)
+  select(Tag, scaled_FledgeOrder, Chick.weight, time_since_fledgling, Fledged, Family)
 class(fd_new)
+View(fd_new)
+duplicated(fd_new$Tag) #Tag is unique
 #step3: merge table_week and fd_new by Tag, both are data.frames
-# 2) Have you checked for multicollinearity of your predictors (fledge order and fledge weight)? It can greatly mess up your model if they are correlated. Tip here is to calculate the 'variance inflation factor'. Should be straight forward to google it. Then only include both measures if their VIF is appropriate.
+new_data0 <- merge(table_week, fd_new, by="Tag", all = TRUE, sort = FALSE)
+View(new_data0)#Contains NA because the file table_week contains the adults too. SHould have subset to Who==Chicks before making the tables. I can still NA omit.
+new_data <- na.omit(new_data0)
+View(new_data)
+#SW:(time since fledging): we should include this as a measure of age. See if you can calculate this from the data (fd). The column 'fledged' will be useful - the units are the number of days since the 1st of April. 
 
-#new_data <- merge(table_week, fd_new, by.x= Tag, all.x = TRUE) #does not work as Tag is repeated for each ind from week1 to 10. Tag is therefore not unique anymore
-#what if left_join?
-new_data<- left_join(table_week, fd_new, by="Tag")
 
 
+##Statistical models
+# 3) SW: Have you checked for multicollinearity of your predictors (fledge order and fledge weight)? It can greatly mess up your model if they are correlated. Tip here is to calculate the 'variance inflation factor'. Should be straight forward to google it. Then only include both measures if their VIF is appropriate.
+#For degree centrality/week and Betweennness/week
+#NB! From week4 because Chicks appear from week 4. However, only 1 chick at week4, not enough data to make an analysis
+#Start the analysis at week6 ( 17chicks), week5 has 6 chicks (not enough for analysis)
+#Use new_data
+#degree centrality and betweenness centrality are both continuous variables --> choose models with normal distribution
+#I have one observation per week. Hence there are repeated measurements for each Tag (due to the week). But if I do a statistical model for each week, there won't be any repeated values anymore. 
+### The repeated measurements will be for family, hence Family must be a random effect. 
+head(new_data)
 
-# SW: good start on all of this! 
-# Here some thoughts to keep you going:
+str(new_data$Family)
+as.numeric(new_data$Family)
+library(dplyr)
+new_data %>% summarise(count = n_distinct(Family)) #18 families
 
-# 1) I would recommend treating your fledge order variable as a scaled variable in all your models (-> value between -0.5-0.5), since the factors of 1-7 are not biologically meaningful.
+#week6
+library(lme4)
+subset6 <- subset(new_data, new_data$Week==6) #17 ind
+hist(subset6$degree)
+dw6 <- lmer(degree ~ scaled_FledgeOrder+ Family + scaled_FledgeOrder:Family+ (1|Family) , data=subset6)
+drop1(dw6, test="F")
+summary(dw6)
 
-# 2) Have you checked for multicollinearity of your predictors (fledge order and fledge weight)? It can greatly mess up your model if they are correlated. Tip here is to calculate the 'variance inflation factor'. Should be straight forward to google it. Then only include both measures if their VIF is appropriate.
+#as there are 6 families and 17 ind, that doesn't leave much ind per family. This is a prob for all my models/week
 
-# 3) I'm not sure if it is worth spending too much time on the model that includes the full network (rather than separated into weeks), since the data set ends up being quite messy (if fledglings die), and relatively small. You have also seen that it is a pretty terrible fit and the residual distribution quite tricky. I would therefore suggest that you try to get your weekly values into analysable format: col 1: week; col 2: Tag; col 3: weekly betweenness; col 4: weekly degree; col 5: scaled fledge order; col 6: fledge weight; col 7: family, 8: time since fledging (the order can of course be different)
-# for the last one (time since fledging): we should include this as a measure of age. See if you can calculate this from the data (fd). The column 'fledged' will be useful - the units are the number of days since the 1st of April. 
-# Using the weekly network allows you to only include the individuals that were actually present and alive during that week (which makes the data a lot more accurate). And you are correct, the chicks only started to enter the population in week 4. 
+#Error:number of levels of each grouping factor must be < number of observations (problems: Tag), when used Tag as a random effect
+#I don't have enough observations I think
 
+hist(subset6$betweenness)#not gaussian
+bw6 <- lmer(betweenness ~  scaled_FledgeOrder*time_since_fledgling + Family+ (1|Family), data=subset6)
+summary(bw6)
+#same prob
+
+#week7
+subset7 <- subset(new_data, new_data$Week==5)#13 ind
+
+
+#week8
+subset8 <- subset(new_data, new_data$Week==8)#16 ind
+
+
+#week9
+subset9 <- subset(new_data, new_data$Week==9)#23 ind
+bw9 <- lmer(betweenness ~  scaled_FledgeOrder*time_since_fledgling + Family+ (1|Family), data=subset9)
+summary(bw9)
+
+#week10
+subset10 <- subset(new_data, new_data$Week==10)#18 ind
+
+#week11
+subset11 <- subset(new_data, new_data$Week==11)#13 ind
+
+#week12
+subset12 <- subset(new_data, new_data$Week==12)#23 ind
+
+#week13
+subset13 <- subset(new_data, new_data$Week==13)#14 ind
+
+#week14
+subset14 <- subset(new_data, new_data$Week==14)#16 ind
+
+#SW: 
 # 4) The models you would be looking at then are *mixed effects models* that take into account repeated measures of the same individual, and it also allows us to include an effect of family (if for example chicks from Nest X are consistently more central because of a genetic effect). 
 # It would be specified something along those lines: centrality ~ rel.fledge order*scale(time.since.fledging) + (1|Tag) + (1|family:Tag)
 # And the equivalent for degree
 # If you feel brave, you can even read up on multivariate models that allow you to include both outcome variables at the same time: (centrality, degree) ~ ...
 # Here some keywords that will help get to the right model: multivariate regression; nested random effects; mixed effects models
 # I don't have a suggestion for a package per se - I usually use Bayesian regression for all of my models these days (package brms), since they are a little more versatile, but you can of course use others.
-
-
-# 4) The models you would be looking at then are *mixed effects models* that take into account repeated measures of the same individual, and it also allows us to include an effect of family (if for example chicks from Nest X are consistently more central because of a genetic effect). 
-# It would be specified something along those lines: centrality ~ rel.fledge order*scale(time.since.fledging) + (1|Tag) + (1|family:Tag)
-# And the equivalent for degree
-
-# 5) If you feel brave, you can even read up on multivariate models that allow you to include both outcome variables at the same time: (centrality, degree) ~ ...
-# Here some keywords that will help get to the right model: multivariate regression; nested random effects; mixed effects models
-# I don't have a suggestion for a package per se - I usually use Bayesian regression for all of my models these days (package brms), since they are a little more versatile, but you can of course use others.
-
 
 
