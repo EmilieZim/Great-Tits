@@ -848,11 +848,14 @@ levels(data_cc_no_NA$Fledge.order)
 #Scale Fledge.order 
 install.packages("scales")
 library(scales)
+library(datawizard)
 fd_withoutNA <- na.omit(fd)
 fd_withoutNA$Fledge.order <- as.numeric(fd_withoutNA$Fledge.order)
 fd_withoutNA$scaled_FledgeOrder <- rescale(fd_withoutNA$Fledge.order, to= c(-0.5, 0.5))
 hist(fd_withoutNA$scaled_FledgeOrder)
 
+fd_withoutNA$scaled_FledgeOrder2 <- normalize(fd_withoutNA$Fledge.order, method = "range", range = c(0, 1))
+head(fd_withoutNA)
 #Scale Fledged --> age at fledgling since the 1st of April
 fd_withoutNA$Fledged <- as.numeric(fd_withoutNA$Fledged)
 fd_withoutNA$time_since_fledgling <-scale(fd_withoutNA$Fledged)
@@ -873,7 +876,7 @@ View(table_week)
 #step2 choose only some columns of fd_withoutNA
 library(dplyr)
 fd_new <- fd_withoutNA %>%
-  select(Tag, scaled_FledgeOrder, Chick.weight, time_since_fledgling, Fledged, Family)
+  select(Tag, scaled_FledgeOrder2, Chick.weight, time_since_fledgling, Fledged, Family)
 class(fd_new)
 View(fd_new)
 duplicated(fd_new$Tag) #Tag is unique
@@ -902,51 +905,46 @@ as.numeric(new_data$Family)
 library(dplyr)
 new_data %>% summarise(count = n_distinct(Family)) #18 families
 
-#week6
+#The models
 library(lme4)
-subset6 <- subset(new_data, new_data$Week==6) #17 ind
-hist(subset6$degree)
-dw6 <- lmer(degree ~ scaled_FledgeOrder+ Family + scaled_FledgeOrder:Family+ (1|Family) , data=subset6)
-drop1(dw6, test="F")
-summary(dw6)
+d <- lmer(degree ~scaled_FledgeOrder2*time_since_fledgling+ (1|Tag) + (1|Family:Tag) , data=new_data)
+summary(d)#doesn't give p-values
+coefs <- data.frame(coef(summary(d)))
+coefs$p.z <- 2 * (1 - pnorm(abs(coefs$t.value)))
+coefs
 
-#as there are 6 families and 17 ind, that doesn't leave much ind per family. This is a prob for all my models/week
+b <- lmer(betweenness ~scaled_FledgeOrder2*time_since_fledgling+ (1|Tag)+ (1|Family:Tag) , data=new_data)
+summary(b)
+coefs1 <- data.frame(coef(summary(b)))
+coefs1$p.z <- 2 * (1 - pnorm(abs(coefs1$t.value)))
+coefs1
 
-#Error:number of levels of each grouping factor must be < number of observations (problems: Tag), when used Tag as a random effect
-#I don't have enough observations I think
+##multivariate analysis
+PCA <- new_data%>%
+  group_by(Tag, degree, betweenness) %>%
+  tally()
+PCA
 
-hist(subset6$betweenness)#not gaussian
-bw6 <- lmer(betweenness ~  scaled_FledgeOrder*time_since_fledgling + Family+ (1|Family), data=subset6)
-summary(bw6)
-#same prob
+attach(PCA)
+y <- cbind(degree, betweenness)
+cor(y)
 
-#week7
-subset7 <- subset(new_data, new_data$Week==5)#13 ind
+pc1 <- princomp(y, cor=T)
+loadings(pc1)
+summary(pc1)
+#Comp1 (1.1231863), Comp2 (0.8593326)
+
+biplot(pc1, pc.biplot=T)
+library(ggplot2)
+library(factoextra)
+
+pca <- prcomp(~degree + betweenness, scale = TRUE, data=PCA)
+
+library(factoextra)
+fviz_pca_var(pca, col.var="darkblue", title= "PCA-Aggression")
 
 
-#week8
-subset8 <- subset(new_data, new_data$Week==8)#16 ind
 
-
-#week9
-subset9 <- subset(new_data, new_data$Week==9)#23 ind
-bw9 <- lmer(betweenness ~  scaled_FledgeOrder*time_since_fledgling + Family+ (1|Family), data=subset9)
-summary(bw9)
-
-#week10
-subset10 <- subset(new_data, new_data$Week==10)#18 ind
-
-#week11
-subset11 <- subset(new_data, new_data$Week==11)#13 ind
-
-#week12
-subset12 <- subset(new_data, new_data$Week==12)#23 ind
-
-#week13
-subset13 <- subset(new_data, new_data$Week==13)#14 ind
-
-#week14
-subset14 <- subset(new_data, new_data$Week==14)#16 ind
 
 #SW: 
 # 4) The models you would be looking at then are *mixed effects models* that take into account repeated measures of the same individual, and it also allows us to include an effect of family (if for example chicks from Nest X are consistently more central because of a genetic effect). 
