@@ -919,7 +919,18 @@ coefs1 <- data.frame(coef(summary(b)))
 coefs1$p.z <- 2 * (1 - pnorm(abs(coefs1$t.value)))
 coefs1
 
+
+#SW: 
+# 4) The models you would be looking at then are *mixed effects models* that take into account repeated measures of the same individual, and it also allows us to include an effect of family (if for example chicks from Nest X are consistently more central because of a genetic effect). 
+# It would be specified something along those lines: centrality ~ rel.fledge order*scale(time.since.fledging) + (1|Tag) + (1|family:Tag)
+# And the equivalent for degree
+# If you feel brave, you can even read up on multivariate models that allow you to include both outcome variables at the same time: (centrality, degree) ~ ...
+# Here some keywords that will help get to the right model: multivariate regression; nested random effects; mixed effects models
+# I don't have a suggestion for a package per se - I usually use Bayesian regression for all of my models these days (package brms), since they are a little more versatile, but you can of course use others.
+
+
 ##multivariate analysis
+library(dplyr)
 PCA <- new_data%>%
   group_by(Tag, degree, betweenness) %>%
   tally()
@@ -943,15 +954,42 @@ pca <- prcomp(~degree + betweenness, scale = TRUE, data=PCA)
 library(factoextra)
 fviz_pca_var(pca, col.var="darkblue", title= "PCA-Aggression")
 
+##Scores of the PCA of each individual and see if it is correlated to fledge order
+
+y1 <- as.data.frame(new_data) %>% select(Tag, degree, betweenness, Week, scaled_FledgeOrder2)
+y1
+y1$TagWeek <- paste(y1$Tag, y1$Week, sep = "_")
+rownames(y1) <- y1$TagWeek
+y1_2 <- y1 %>% select(-c(Tag, TagWeek, Week, scaled_FledgeOrder2))
+pca1 <- princomp(y1_2, cor=T)
+score<- pca1$scores[,1]
+
+#by setting rownames we now know which scores belong to which individuals
+#I need the rownames again so that I can match the Fledge order with the PCA scores
+PCA_Fledge <- data.frame(PCA_Score = score) 
+PCA_Fledge$TagWeek <- rownames(PCA_Fledge)
+library(tidyr)
+PCA_Fledge <- PCA_Fledge %>% separate(col = TagWeek, sep = "_", into = c("Tag", "Week")) #Splits the merged name into two again
+y1$Week <- as.character(y1$Week)
+PCA_Fledge <- left_join(PCA_Fledge, select(y1, Tag, scaled_FledgeOrder2, Week))
+
+#correlation:
+cor.test(PCA_Fledge$PCA_Score, PCA_Fledge$scaled_FledgeOrder2)#not significant
+#not correlated
+#Visualize:
+library(ggpubr)
+ggscatter(PCA_Fledge, x = "PCA_Score", y = "scaled_FledgeOrder2", 
+          add = "reg.line", conf.int = TRUE, 
+          cor.coef = TRUE, cor.method = "pearson",
+          xlab = "PCA scores", ylab = "Fledge order")
 
 
 
-#SW: 
-# 4) The models you would be looking at then are *mixed effects models* that take into account repeated measures of the same individual, and it also allows us to include an effect of family (if for example chicks from Nest X are consistently more central because of a genetic effect). 
-# It would be specified something along those lines: centrality ~ rel.fledge order*scale(time.since.fledging) + (1|Tag) + (1|family:Tag)
-# And the equivalent for degree
-# If you feel brave, you can even read up on multivariate models that allow you to include both outcome variables at the same time: (centrality, degree) ~ ...
-# Here some keywords that will help get to the right model: multivariate regression; nested random effects; mixed effects models
-# I don't have a suggestion for a package per se - I usually use Bayesian regression for all of my models these days (package brms), since they are a little more versatile, but you can of course use others.
+
+
+
+
+
+
 
 
