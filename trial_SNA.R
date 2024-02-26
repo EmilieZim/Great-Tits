@@ -231,7 +231,6 @@ dim(gbi1.sub)
 network_week1 <- get_network(gbi1.sub, data_format="GBI",
                              association_index="SRI")
 
-# SW this is how far I've looked at the code.
 
 net1 <- graph_from_adjacency_matrix(network_week1,mode= c("undirected"), diag=FALSE, weighted=TRUE)
 net1_deg <- degree(net1)
@@ -901,23 +900,31 @@ View(new_data)
 head(new_data)
 
 str(new_data$Family)
-as.numeric(new_data$Family)
+# SW: Family should be a factor, not numeric
+#as.numeric(new_data$Family)
 library(dplyr)
 new_data %>% summarise(count = n_distinct(Family)) #18 families
 
 #The models
 library(lme4)
-d <- lmer(degree ~scaled_FledgeOrder2*time_since_fledgling+ (1|Tag) + (1|Family:Tag) , data=new_data)
+d <- lmer(degree ~scaled_FledgeOrder2*time_since_fledgling + (1|Tag) + (1|Family:Tag) , data=new_data)
 summary(d)#doesn't give p-values
 coefs <- data.frame(coef(summary(d)))
 coefs$p.z <- 2 * (1 - pnorm(abs(coefs$t.value)))
 coefs
+
+
+# SW: there is a very useful library that can help with interpretation of most statistical tests
+library(report)
+report(d)
 
 b <- lmer(betweenness ~scaled_FledgeOrder2*time_since_fledgling+ (1|Tag)+ (1|Family:Tag) , data=new_data)
 summary(b)
 coefs1 <- data.frame(coef(summary(b)))
 coefs1$p.z <- 2 * (1 - pnorm(abs(coefs1$t.value)))
 coefs1
+
+report(b)
 
 
 #SW: 
@@ -927,6 +934,30 @@ coefs1
 # If you feel brave, you can even read up on multivariate models that allow you to include both outcome variables at the same time: (centrality, degree) ~ ...
 # Here some keywords that will help get to the right model: multivariate regression; nested random effects; mixed effects models
 # I don't have a suggestion for a package per se - I usually use Bayesian regression for all of my models these days (package brms), since they are a little more versatile, but you can of course use others.
+
+
+
+#SW: I do not recommend a PCA for this. The PCA reduces your two measures (degree and betweenness) to combined factor. But what you would like to test is whether fledge order is a predictor of one, the other, or both. That is where multivariate statistics comes in: 
+# From wikipedia: Multivariate statistics is a subdivision of statistics encompassing the simultaneous observation and analysis of more than one outcome variable, i.e., multivariate random variables. 
+
+# to test degree and betweenness at the same time, you can use something along those lines:
+
+library(brms)
+m <-
+  brm(
+    mvbind(degree, betweenness) ~ as.factor(scaled_FledgeOrder2) * time_since_fledgling +  (1 | Tag) + (1 | Family:Tag),
+    data = new_data
+  )
+
+# SW: you don't have to use brms - this is just the package I am most familiar with. 
+# Here is a tutorial if you are interested in using this package: https://ourcodingclub.github.io/tutorials/brms/
+# also, I may not have specified the model entirely correctly (such as which family to use), so take it with a grain of salt
+
+
+
+summary(m)
+
+
 
 
 ##multivariate analysis
