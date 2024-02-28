@@ -178,6 +178,7 @@ head(metadata)
 #substracting the 6 first numbers of the Start column
 metadata$date <- substr(metadata$Start , 1, 6)
 head(metadata)
+View(metadata)
 max(metadata$Start)#go until august
 max(metadata$date)
 min(metadata$Start)#start in May
@@ -855,9 +856,8 @@ hist(fd_withoutNA$scaled_FledgeOrder)
 
 fd_withoutNA$scaled_FledgeOrder2 <- normalize(fd_withoutNA$Fledge.order, method = "range", range = c(0, 1))
 head(fd_withoutNA)
-#Scale Fledged --> age at fledgling since the 1st of April
-fd_withoutNA$Fledged <- as.numeric(fd_withoutNA$Fledged)
-fd_withoutNA$time_since_fledgling <-scale(fd_withoutNA$Fledged)
+
+
 
 #make a new dataframe for the regressions
 # 2)SW: I would therefore suggest that you try to get your weekly values into analysable format: 
@@ -875,17 +875,64 @@ View(table_week)
 #step2 choose only some columns of fd_withoutNA
 library(dplyr)
 fd_new <- fd_withoutNA %>%
-  select(Tag, scaled_FledgeOrder2, Chick.weight, time_since_fledgling, Fledged, Family)
+  select(Tag, scaled_FledgeOrder2, Chick.weight, Fledged, Family)
 class(fd_new)
 View(fd_new)
 duplicated(fd_new$Tag) #Tag is unique
 #step3: merge table_week and fd_new by Tag, both are data.frames
 new_data0 <- merge(table_week, fd_new, by="Tag", all = TRUE, sort = FALSE)
-View(new_data0)#Contains NA because the file table_week contains the adults too. SHould have subset to Who==Chicks before making the tables. I can still NA omit.
+View(new_data0)#Contains NA because the file table_week contains the adults too. Should have subset to Who==Chicks before making the tables. I can still NA omit.
 new_data <- na.omit(new_data0)
 View(new_data)
 #SW:(time since fledging): we should include this as a measure of age. See if you can calculate this from the data (fd). The column 'fledged' will be useful - the units are the number of days since the 1st of April. 
 
+###Calculate new column: Time since fledging for each ind and each week
+head(new_data)
+library(lubridate)
+#I want Fledge into a date, counting since the 01/04/2020
+str(new_data$Fledged)#has to be numeric for the following code
+reference_date <- as.Date("2020-04-01")
+new_data$Fledge.date <-reference_date + days(new_data$Fledged)
+
+#I want to see wich dates correspnd to the data collection for each week
+# Extract the value from the original data frame and adding them to the data frame (new_data)
+metadata$date3[metadata$week == 1]#2020-05-06
+metadata$date3[metadata$week == 2]#2020-05-13
+metadata$date3[metadata$week == 3]#2020-05-20
+metadata$date3[metadata$week == 4]#2020-05-27
+metadata$date3[metadata$week == 5]#2020-06-03
+metadata$date3[metadata$week == 6]#2020-06-10
+metadata$date3[metadata$week == 7]#2020-06-17
+metadata$date3[metadata$week == 8]#2020-06-24
+metadata$date3[metadata$week == 9]#2020-07-01
+metadata$date3[metadata$week == 10]#2020-07-08
+metadata$date3[metadata$week == 11]#2020-07-15
+metadata$date3[metadata$week == 12]#2020-07-22
+metadata$date3[metadata$week == 13]#2020-07-29
+metadata$date3[metadata$week == 14]#2020-08-05
+
+library(dplyr)
+new_data <- new_data %>% mutate(date.data.collection = case_when(Week == 1 ~ "2020-05-06", 
+                               Week == 2 ~ "2020-05-13",
+                               Week == 3 ~ "2020-05-20",
+                               Week == 4 ~ "2020-05-27",
+                               Week == 5 ~ "2020-06-03",
+                               Week == 6 ~ "2020-06-10",
+                               Week == 7 ~ "2020-06-17",
+                               Week == 8 ~ "2020-06-24",
+                               Week == 9 ~ "2020-07-01",
+                               Week == 10 ~"2020-07-08",
+                               Week == 11 ~ "2020-07-15",
+                               Week == 12 ~"2020-07-22",
+                               Week == 13 ~"2020-07-29",
+                               Week == 14 ~"2020-08-05"))
+
+
+#Now substract: "date.data.collection" - "Fledge.date" --> gives the age of the chicks at each week (since fledging)
+View(new_data)
+new_data$date.data.collection  <- as.Date(new_data$date.data.collection, format = "%Y-%m-%d")
+new_data$age <- (new_data$date.data.collection) - (new_data$Fledge.date) #gives the time difference in days
+new_data$age <- as.numeric(new_data$age)
 
 
 ##Statistical models
@@ -900,67 +947,103 @@ View(new_data)
 head(new_data)
 
 str(new_data$Family)
-# SW: Family should be a factor, not numeric
-#as.numeric(new_data$Family)
-library(dplyr)
-new_data %>% summarise(count = n_distinct(Family)) #18 families
-
+new_data$Family <- as.factor(new_data$Family)
+str(new_data$scaled_FledgeOrder2)
+str(new_data$Tag)
+str(new_data$degree)
+str(new_data$age)
 #The models
 library(lme4)
-d <- lmer(degree ~scaled_FledgeOrder2*time_since_fledgling + (1|Tag) + (1|Family:Tag) , data=new_data)
-summary(d)#doesn't give p-values
-coefs <- data.frame(coef(summary(d)))
-coefs$p.z <- 2 * (1 - pnorm(abs(coefs$t.value)))
-coefs
+library(lmerTest)
+d <- lmer(degree ~ scaled_FledgeOrder2*age + Chick.weight*scaled_FledgeOrder2 + Chick.weight*age + (1|Tag) + (1|Family:Tag) , data=new_data)
+summary(d)#doesn't give p-values because did not put library(lmerTest)!!!Don't forget
+
+#simplify model by checking for multicolinearity
+require(car)
+vif(d)#High VIF values --> problems of multicolinearity 
+drop1(d, test="F")
+#remove the interactions of high VIF and that are not significant
+d1 <- lmer(degree ~ scaled_FledgeOrder2*age + Chick.weight + (1|Tag) + (1|Family:Tag) , data=new_data)
+vif(d1)
+summary(d1)
+
+b <- lmer(betweenness ~scaled_FledgeOrder2*age + Chick.weight*scaled_FledgeOrder2 + Chick.weight*age + (1|Tag)+ (1|Family:Tag) , data=new_data)
+vif(b)
+drop1(b, test="F")
+b1 <- lmer(betweenness ~scaled_FledgeOrder2*age + Chick.weight + (1|Tag)+ (1|Family:Tag) , data=new_data)
+vif(b1)
+summary(b1)
+
 
 
 # SW: there is a very useful library that can help with interpretation of most statistical tests
 library(report)
-report(d)
+report(d1)
+report(b1)
 
-b <- lmer(betweenness ~scaled_FledgeOrder2*time_since_fledgling+ (1|Tag)+ (1|Family:Tag) , data=new_data)
-summary(b)
-coefs1 <- data.frame(coef(summary(b)))
-coefs1$p.z <- 2 * (1 - pnorm(abs(coefs1$t.value)))
-coefs1
-
-report(b)
+#no effect of fledge order on the position in the social network
 
 
-#SW: 
-# 4) The models you would be looking at then are *mixed effects models* that take into account repeated measures of the same individual, and it also allows us to include an effect of family (if for example chicks from Nest X are consistently more central because of a genetic effect). 
-# It would be specified something along those lines: centrality ~ rel.fledge order*scale(time.since.fledging) + (1|Tag) + (1|family:Tag)
-# And the equivalent for degree
-# If you feel brave, you can even read up on multivariate models that allow you to include both outcome variables at the same time: (centrality, degree) ~ ...
-# Here some keywords that will help get to the right model: multivariate regression; nested random effects; mixed effects models
-# I don't have a suggestion for a package per se - I usually use Bayesian regression for all of my models these days (package brms), since they are a little more versatile, but you can of course use others.
+##Try the models when scaled_FledgeOrder2 is a factor
+max(new_data$scaled_FledgeOrder2)#1
+new_data <- new_data %>%
+  mutate(factor.order = ifelse(scaled_FledgeOrder2 == 1, "First", "Other"))
+View(new_data)
+new_data$factor.order <- as.factor(new_data$factor.order)
+str(new_data$factor.order)
+
+library(lme4)
+library(lmerTest)
+dd <- lmer(degree ~ factor.order*age + Chick.weight*factor.order + Chick.weight*age + (1|Tag) + (1|Family:Tag) , data=new_data)
+summary(d)#doesn't give p-values because did not put library(lmerTest)!!!Don't forget
+
+#simplify model by checking for multicolinearity
+require(car)
+vif(dd)#High VIF values --> problems of multicolinearity 
+drop1(d, test="F")
+#remove the interactions of high VIF and that are not significant
+dd1 <- lmer(degree ~ factor.order*age + Chick.weight + Chick.weight*age + (1|Tag) + (1|Family:Tag) , data=new_data)
+vif(dd1)
+drop1(dd1, test="F")
+dd2 <- lmer(degree ~ factor.order + age + Chick.weight  + (1|Tag) + (1|Family:Tag) , data=new_data)
+vif(dd2)
+summary(dd2)
+
+bb <- lmer(betweenness ~ factor.order*age + Chick.weight*factor.order + Chick.weight*age  + (1|Tag)+ (1|Family:Tag) , data=new_data)
+vif(bb)
+drop1(bb, test="F")
+bb1 <- lmer(betweenness ~factor.order + Chick.weight +age  + (1|Tag)+ (1|Family:Tag) , data=new_data)
+vif(bb1)
+summary(bb1)
 
 
+#Again, no effect of fledge order
 
-#SW: I do not recommend a PCA for this. The PCA reduces your two measures (degree and betweenness) to combined factor. But what you would like to test is whether fledge order is a predictor of one, the other, or both. That is where multivariate statistics comes in: 
-# From wikipedia: Multivariate statistics is a subdivision of statistics encompassing the simultaneous observation and analysis of more than one outcome variable, i.e., multivariate random variables. 
 
-# to test degree and betweenness at the same time, you can use something along those lines:
-
-library(brms)
-m <-
-  brm(
-    mvbind(degree, betweenness) ~ as.factor(scaled_FledgeOrder2) * time_since_fledgling +  (1 | Tag) + (1 | Family:Tag),
-    data = new_data
-  )
 
 # SW: you don't have to use brms - this is just the package I am most familiar with. 
 # Here is a tutorial if you are interested in using this package: https://ourcodingclub.github.io/tutorials/brms/
 # also, I may not have specified the model entirely correctly (such as which family to use), so take it with a grain of salt
-
-
-
+#SW: to test degree and betweenness at the same time, you can use something along those lines:
+#I still have to check this out
+library(brms)
+m <-
+  brm(
+    mvbind(degree, betweenness) ~ as.factor(Fledge.order) * age +  (1 | Tag) + (1 | Family:Tag), family= , 
+    data = new_data
+  )
 summary(m)
 
 
 
 
-##multivariate analysis
+
+####multivariate analysis
+
+#SW: I do not recommend a PCA for this. The PCA reduces your two measures (degree and betweenness) to combined factor. But what you would like to test is whether fledge order is a predictor of one, the other, or both. That is where multivariate statistics comes in: 
+# From wikipedia: Multivariate statistics is a subdivision of statistics encompassing the simultaneous observation and analysis of more than one outcome variable, i.e., multivariate random variables. 
+
+#EZ: But I particularly did it to extract the pca scores for each ind and link them to their fledge order
 library(dplyr)
 PCA <- new_data%>%
   group_by(Tag, degree, betweenness) %>%
