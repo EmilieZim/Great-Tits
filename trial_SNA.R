@@ -222,7 +222,7 @@ gbi1 <- gbi[1:138,]
 # we can do this by using column sums - i.e. we only include columns (individuals) with a column sum
 # of at least 5
 
-threshold <- 5
+threshold <- 10
 gbi1.sub <- gbi1[,colSums(gbi1)>=threshold]
 dim(gbi1.sub)
 # that gives you 138 rows and 12 columns (=individuals)
@@ -253,7 +253,7 @@ head(dc)
 which(metadata$week == 2)#from row 139 to 559
 
 gbi2 <- gbi[139:559,] 
-threshold <- 5
+#threshold <- 5
 gbi2.sub <- gbi2[,colSums(gbi2)>=threshold]
 dim(gbi2.sub) #22 individuals seen at least 5 times during the second week
 network_week2 <- get_network(gbi2.sub, data_format="GBI",
@@ -280,7 +280,7 @@ dc2 <- merge (centrality_table2, fd, by.x= "Tag")
 which(metadata$week == 3)
 gbi3 <- gbi[560:1388,]
 
-threshold <- 5
+#threshold <- 5
 gbi3.sub <- gbi3[,colSums(gbi3)>=threshold]
 dim(gbi3.sub)
 # 47 individuals seen at least 5 times in week3
@@ -309,7 +309,7 @@ head(dc)
 which(metadata$week == 4)
 gbi4 <- gbi[1389:2309,]
 
-threshold <- 5
+#threshold <- 5
 gbi4.sub <- gbi4[,colSums(gbi4)>=threshold]
 dim(gbi4.sub)
 # 52 individuals seen at least 5 times in week4
@@ -342,7 +342,7 @@ table_week4$Week <- 4
 which(metadata$week == 5)
 gbi5 <- gbi[2310:3044,]
 
-threshold <- 5
+#threshold <- 5
 gbi5.sub <- gbi5[,colSums(gbi5)>=threshold]
 dim(gbi5.sub)
 # 59 individuals seen at least 5 times in week5
@@ -375,7 +375,7 @@ table_week5$Week <- 5
 which(metadata$week == 6)
 gbi6 <- gbi[3045:3999,]
 
-threshold <- 5
+#threshold <- 5
 gbi6.sub <- gbi6[,colSums(gbi6)>=threshold]
 dim(gbi6.sub)
 # 83 individuals seen at least 5 times in week5
@@ -429,7 +429,7 @@ ggplot(dcc6, aes(x = betweenness, y = Fledge.order)) +
 which(metadata$week == 7)
 gbi7 <- gbi[4000:4690,]
 
-threshold <- 5
+#threshold <- 5
 gbi7.sub <- gbi7[,colSums(gbi7)>=threshold]
 dim(gbi7.sub)
 # 66 individuals seen at least 5 times in week7 (less than the previous week)
@@ -480,7 +480,7 @@ ggplot(dcc7, aes(x = betweenness, y = Fledge.order)) +
 which(metadata$week == 8)
 gbi8 <- gbi[4692:5289,]
 
-threshold <- 5
+#threshold <- 5
 gbi8.sub <- gbi8[,colSums(gbi8)>=threshold]
 dim(gbi8.sub)
 # 62 individuals seen at least 5 times in week8 
@@ -530,7 +530,7 @@ ggplot(dcc8, aes(x = betweenness, y = Fledge.order)) +
 which(metadata$week == 9)
 gbi9 <- gbi[4290:5933,]
 
-threshold <- 5
+#threshold <- 5
 gbi9.sub <- gbi9[,colSums(gbi9)>=threshold]
 dim(gbi9.sub)
 # 87 individuals seen at least 5 times in week9 (the highest value up until now)
@@ -581,7 +581,7 @@ ggplot(dcc9, aes(x = betweenness, y = Fledge.order)) +
 which(metadata$week == 10)
 gbi10 <- gbi[5934:6879,]
 
-threshold <- 5
+#threshold <- 5
 gbi10.sub <- gbi10[,colSums(gbi10)>=threshold]
 dim(gbi10.sub)
 # 78 individuals seen at least 5 times in week10 
@@ -633,7 +633,7 @@ ggplot(dcc10, aes(x = betweenness, y = Fledge.order)) +
 which(metadata$week == 11)
 gbi11 <- gbi[6880:7724,]
 
-threshold <- 5
+#threshold <- 5
 gbi11.sub <- gbi11[,colSums(gbi11)>=threshold]
 dim(gbi11.sub)
 # 68 individuals seen at least 5 times in week11 
@@ -683,7 +683,7 @@ ggplot(dcc11, aes(x = betweenness, y = Fledge.order)) +
 which(metadata$week == 12)
 gbi12 <- gbi[7725:8428,]
 
-threshold <- 5
+#threshold <- 5
 gbi12.sub <- gbi12[,colSums(gbi12)>=threshold]
 dim(gbi12.sub)
 # 81 individuals seen at least 5 times in week12 
@@ -733,7 +733,7 @@ ggplot(dcc12, aes(x = betweenness, y = Fledge.order)) +
 which(metadata$week == 13)
 gbi13 <- gbi[8429:9164,]
 
-threshold <- 5
+#threshold <- 5
 gbi13.sub <- gbi13[,colSums(gbi13)>=threshold]
 dim(gbi13.sub)
 # 60 individuals seen at least 5 times in week13 
@@ -783,7 +783,7 @@ ggplot(dcc13, aes(x = betweenness, y = Fledge.order)) +
 which(metadata$week == 14)
 gbi14 <- gbi[9165:9913,]
 
-threshold <- 5
+#threshold <- 5
 gbi14.sub <- gbi14[,colSums(gbi14)>=threshold]
 dim(gbi14.sub)
 # 74 individuals seen at least 5 times in week14 
@@ -846,7 +846,7 @@ levels(data_cc_no_NA$Fledge.order)
 ## SW: 1) I would recommend treating your fledge order variable as a scaled variable in all your models (-> value between -0.5-0.5), since the factors of 1-7 are not biologically meaningful.
 
 #Scale Fledge.order 
-install.packages("scales")
+#install.packages("scales")
 library(scales)
 library(datawizard)
 fd_withoutNA <- na.omit(fd)
@@ -854,7 +854,7 @@ fd_withoutNA$Fledge.order <- as.numeric(fd_withoutNA$Fledge.order)
 fd_withoutNA$scaled_FledgeOrder <- rescale(fd_withoutNA$Fledge.order, to= c(-0.5, 0.5))
 hist(fd_withoutNA$scaled_FledgeOrder)
 
-fd_withoutNA$scaled_FledgeOrder2 <- normalize(fd_withoutNA$Fledge.order, method = "range", range = c(0, 1))
+fd_withoutNA$scaled_FledgeOrder2 <- datawizard::normalize(fd_withoutNA$Fledge.order, method = "range", range = c(0, 1))
 head(fd_withoutNA)
 
 
@@ -955,12 +955,25 @@ str(new_data$age)
 #The models
 library(lme4)
 library(lmerTest)
+
 d <- lmer(degree ~ scaled_FledgeOrder2*age + Chick.weight*scaled_FledgeOrder2 + Chick.weight*age + (1|Tag) + (1|Family:Tag) , data=new_data)
+
+# SW: this model does not seem to converge, so you cannot really use it for any itnerpretation or to get reliable vifs. I would recommend just using a simple linear regression to test for vifs. The interaction terms are not really an issue: https://statisticalhorizons.com/multicollinearity/
+
+d <- lmer(degree ~ scaled_FledgeOrder2 + scale(age) + Chick.weight + (1|Tag), data=new_data)
+
 summary(d)#doesn't give p-values because did not put library(lmerTest)!!!Don't forget
 
 #simplify model by checking for multicolinearity
 require(car)
 vif(d)#High VIF values --> problems of multicolinearity 
+
+# scaled_FledgeOrder2          scale(age)        Chick.weight 
+# 1.121848            1.000856            1.122754 
+
+# The multi-collinearity seems unproblematic
+
+# SW: I've not looked at this in detail
 drop1(d, test="F")
 #remove the interactions of high VIF and that are not significant
 d1 <- lmer(degree ~ scaled_FledgeOrder2*age + Chick.weight + (1|Tag) + (1|Family:Tag) , data=new_data)
@@ -985,9 +998,11 @@ report(b1)
 
 
 ##Try the models when scaled_FledgeOrder2 is a factor
-max(new_data$scaled_FledgeOrder2)#1
+min(new_data$scaled_FledgeOrder2)#1
+
+# SW: I've changed this to a 0 (0 are first fledglings, higher is others)
 new_data <- new_data %>%
-  mutate(factor.order = ifelse(scaled_FledgeOrder2 == 1, "First", "Other"))
+  mutate(factor.order = ifelse(scaled_FledgeOrder2 == 0, "First", "Other"))
 View(new_data)
 new_data$factor.order <- as.factor(new_data$factor.order)
 str(new_data$factor.order)
@@ -1024,15 +1039,37 @@ summary(bb1)
 # SW: you don't have to use brms - this is just the package I am most familiar with. 
 # Here is a tutorial if you are interested in using this package: https://ourcodingclub.github.io/tutorials/brms/
 # also, I may not have specified the model entirely correctly (such as which family to use), so take it with a grain of salt
-#SW: to test degree and betweenness at the same time, you can use something along those lines:
-#I still have to check this out
+# to test degree and betweenness at the same time, you can use something along those lines:
+# I still have to check this out
+
+
+
+# SW: I've been trying a couple of things here - the models seem to fit pretty poorly atm. 
 library(brms)
-m <-
+
+m1 <-
   brm(
-    mvbind(degree, betweenness) ~ as.factor(Fledge.order) * age +  (1 | Tag) + (1 | Family:Tag), family= , 
+    mvbind(degree, betweenness) ~ scaled_FledgeOrder2 * scale(age) + scale(Chick.weight)*scale(age) +  (1 | Tag) , 
     data = new_data
   )
-summary(m)
+
+summary(m1)
+pp_check(m1, resp="degree")
+pp_check(m1, resp="betweenness")
+# these look like pretty poor models
+
+
+m2 <-
+  brm(
+    mvbind(degree, betweenness) ~ factor.order * scale(age) + scale(Chick.weight)*scale(age) +  (1 | Tag) , 
+    data = new_data
+  )
+
+
+summary(m2)
+pp_check(m2, resp="degree")
+pp_check(m2, resp="betweenness")
+
 
 
 
