@@ -222,7 +222,7 @@ gbi1 <- gbi[1:138,]
 # we can do this by using column sums - i.e. we only include columns (individuals) with a column sum
 # of at least 5
 
-threshold <- 5
+threshold <- 10
 gbi1.sub <- gbi1[,colSums(gbi1)>=threshold]
 dim(gbi1.sub)
 # that gives you 138 rows and 12 columns (=individuals)
@@ -253,7 +253,7 @@ head(dc)
 which(metadata$week == 2)#from row 139 to 559
 
 gbi2 <- gbi[139:559,] 
-threshold <- 5
+#threshold <- 5
 gbi2.sub <- gbi2[,colSums(gbi2)>=threshold]
 dim(gbi2.sub) #22 individuals seen at least 5 times during the second week
 network_week2 <- get_network(gbi2.sub, data_format="GBI",
@@ -280,7 +280,7 @@ dc2 <- merge (centrality_table2, fd, by.x= "Tag")
 which(metadata$week == 3)
 gbi3 <- gbi[560:1388,]
 
-threshold <- 5
+#threshold <- 5
 gbi3.sub <- gbi3[,colSums(gbi3)>=threshold]
 dim(gbi3.sub)
 # 47 individuals seen at least 5 times in week3
@@ -309,7 +309,7 @@ head(dc)
 which(metadata$week == 4)
 gbi4 <- gbi[1389:2309,]
 
-threshold <- 5
+#threshold <- 5
 gbi4.sub <- gbi4[,colSums(gbi4)>=threshold]
 dim(gbi4.sub)
 # 52 individuals seen at least 5 times in week4
@@ -342,7 +342,7 @@ table_week4$Week <- 4
 which(metadata$week == 5)
 gbi5 <- gbi[2310:3044,]
 
-threshold <- 5
+#threshold <- 5
 gbi5.sub <- gbi5[,colSums(gbi5)>=threshold]
 dim(gbi5.sub)
 # 59 individuals seen at least 5 times in week5
@@ -375,7 +375,7 @@ table_week5$Week <- 5
 which(metadata$week == 6)
 gbi6 <- gbi[3045:3999,]
 
-threshold <- 5
+#threshold <- 5
 gbi6.sub <- gbi6[,colSums(gbi6)>=threshold]
 dim(gbi6.sub)
 # 83 individuals seen at least 5 times in week5
@@ -429,7 +429,7 @@ ggplot(dcc6, aes(x = betweenness, y = Fledge.order)) +
 which(metadata$week == 7)
 gbi7 <- gbi[4000:4690,]
 
-threshold <- 5
+#threshold <- 5
 gbi7.sub <- gbi7[,colSums(gbi7)>=threshold]
 dim(gbi7.sub)
 # 66 individuals seen at least 5 times in week7 (less than the previous week)
@@ -480,7 +480,7 @@ ggplot(dcc7, aes(x = betweenness, y = Fledge.order)) +
 which(metadata$week == 8)
 gbi8 <- gbi[4692:5289,]
 
-threshold <- 5
+#threshold <- 5
 gbi8.sub <- gbi8[,colSums(gbi8)>=threshold]
 dim(gbi8.sub)
 # 62 individuals seen at least 5 times in week8 
@@ -530,7 +530,7 @@ ggplot(dcc8, aes(x = betweenness, y = Fledge.order)) +
 which(metadata$week == 9)
 gbi9 <- gbi[4290:5933,]
 
-threshold <- 5
+#threshold <- 5
 gbi9.sub <- gbi9[,colSums(gbi9)>=threshold]
 dim(gbi9.sub)
 # 87 individuals seen at least 5 times in week9 (the highest value up until now)
@@ -581,7 +581,7 @@ ggplot(dcc9, aes(x = betweenness, y = Fledge.order)) +
 which(metadata$week == 10)
 gbi10 <- gbi[5934:6879,]
 
-threshold <- 5
+#threshold <- 5
 gbi10.sub <- gbi10[,colSums(gbi10)>=threshold]
 dim(gbi10.sub)
 # 78 individuals seen at least 5 times in week10 
@@ -633,7 +633,7 @@ ggplot(dcc10, aes(x = betweenness, y = Fledge.order)) +
 which(metadata$week == 11)
 gbi11 <- gbi[6880:7724,]
 
-threshold <- 5
+#threshold <- 5
 gbi11.sub <- gbi11[,colSums(gbi11)>=threshold]
 dim(gbi11.sub)
 # 68 individuals seen at least 5 times in week11 
@@ -683,7 +683,7 @@ ggplot(dcc11, aes(x = betweenness, y = Fledge.order)) +
 which(metadata$week == 12)
 gbi12 <- gbi[7725:8428,]
 
-threshold <- 5
+#threshold <- 5
 gbi12.sub <- gbi12[,colSums(gbi12)>=threshold]
 dim(gbi12.sub)
 # 81 individuals seen at least 5 times in week12 
@@ -733,7 +733,7 @@ ggplot(dcc12, aes(x = betweenness, y = Fledge.order)) +
 which(metadata$week == 13)
 gbi13 <- gbi[8429:9164,]
 
-threshold <- 5
+#threshold <- 5
 gbi13.sub <- gbi13[,colSums(gbi13)>=threshold]
 dim(gbi13.sub)
 # 60 individuals seen at least 5 times in week13 
@@ -783,7 +783,7 @@ ggplot(dcc13, aes(x = betweenness, y = Fledge.order)) +
 which(metadata$week == 14)
 gbi14 <- gbi[9165:9913,]
 
-threshold <- 5
+#threshold <- 5
 gbi14.sub <- gbi14[,colSums(gbi14)>=threshold]
 dim(gbi14.sub)
 # 74 individuals seen at least 5 times in week14 
@@ -846,7 +846,7 @@ levels(data_cc_no_NA$Fledge.order)
 ## SW: 1) I would recommend treating your fledge order variable as a scaled variable in all your models (-> value between -0.5-0.5), since the factors of 1-7 are not biologically meaningful.
 
 #Scale Fledge.order 
-install.packages("scales")
+#install.packages("scales")
 library(scales)
 library(datawizard)
 fd_withoutNA <- na.omit(fd)
@@ -854,7 +854,7 @@ fd_withoutNA$Fledge.order <- as.numeric(fd_withoutNA$Fledge.order)
 fd_withoutNA$scaled_FledgeOrder <- rescale(fd_withoutNA$Fledge.order, to= c(-0.5, 0.5))
 hist(fd_withoutNA$scaled_FledgeOrder)
 
-fd_withoutNA$scaled_FledgeOrder2 <- normalize(fd_withoutNA$Fledge.order, method = "range", range = c(0, 1))
+fd_withoutNA$scaled_FledgeOrder2 <- datawizard::normalize(fd_withoutNA$Fledge.order, method = "range", range = c(0, 1))
 head(fd_withoutNA)
 
 
@@ -894,7 +894,7 @@ str(new_data$Fledged)#has to be numeric for the following code
 reference_date <- as.Date("2020-04-01")
 new_data$Fledge.date <-reference_date + days(new_data$Fledged)
 
-#I want to see wich dates correspnd to the data collection for each week
+#I want to see which dates correspond to the data collection for each week
 # Extract the value from the original data frame and adding them to the data frame (new_data)
 metadata$date3[metadata$week == 1]#2020-05-06
 metadata$date3[metadata$week == 2]#2020-05-13
@@ -939,12 +939,10 @@ new_data$age <- as.numeric(new_data$age)
 # 3) SW: Have you checked for multicollinearity of your predictors (fledge order and fledge weight)? It can greatly mess up your model if they are correlated. Tip here is to calculate the 'variance inflation factor'. Should be straight forward to google it. Then only include both measures if their VIF is appropriate.
 #For degree centrality/week and Betweennness/week
 #NB! From week4 because Chicks appear from week 4. However, only 1 chick at week4, not enough data to make an analysis
-#Start the analysis at week6 ( 17chicks), week5 has 6 chicks (not enough for analysis)
 #Use new_data
 #degree centrality and betweenness centrality are both continuous variables --> choose models with normal distribution
-#I have one observation per week. Hence there are repeated measurements for each Tag (due to the week). But if I do a statistical model for each week, there won't be any repeated values anymore. 
-### The repeated measurements will be for family, hence Family must be a random effect. 
 head(new_data)
+
 
 str(new_data$Family)
 new_data$Family <- as.factor(new_data$Family)
@@ -955,88 +953,200 @@ str(new_data$age)
 #The models
 library(lme4)
 library(lmerTest)
-d <- lmer(degree ~ scaled_FledgeOrder2*age + Chick.weight*scaled_FledgeOrder2 + Chick.weight*age + (1|Tag) + (1|Family:Tag) , data=new_data)
-summary(d)#doesn't give p-values because did not put library(lmerTest)!!!Don't forget
 
-#simplify model by checking for multicolinearity
+
+
+#d <- lmer(degree ~ scaled_FledgeOrder2*age + Chick.weight*scaled_FledgeOrder2 + Chick.weight*age + (1|Tag) + (1|Family:Tag) , data=new_data)
+
+# SW: this model does not seem to converge, so you cannot really use it for any itnerpretation or to get reliable vifs. I would recommend just using a simple linear regression to test for vifs. The interaction terms are not really an issue: https://statisticalhorizons.com/multicollinearity/
+###EZ: I correct the model first, then I look for multi-collinearity
+#to correct converge issues --> scale age (added a new column in new_data for this) "scale.age"
+## Also, problems if I add more than 1 random effect.
+new_data$scale.age <- scale(new_data$age)
+View(new_data)
+
+#degree
+d <- lmer(degree ~scaled_FledgeOrder2*scale.age + Chick.weight*scaled_FledgeOrder2 + Chick.weight*scale.age + (1|Tag), data= new_data)
+qqnorm(residuals(d))
+qqline(residuals(d))
+shapiro.test(resid(d))#not normal
+hist(new_data$degree)
+trans <- log(new_data$degree)#I have tried other transformations: sqrt, ^2, 1/degree...Nothing works
+hist(trans)
+d <- lmer(trans ~scaled_FledgeOrder2*scale.age + Chick.weight*scaled_FledgeOrder2 + Chick.weight*scale.age + (1|Tag), data= new_data)
+qqnorm(residuals(d))
+qqline(residuals(d))
+shapiro.test(resid(d))#not normal
+hist(new_data$degree)
+
+summary(d)
+drop1(d,test="F")#the interactions are not significant, I leave them out of the model
+d0 <- lmer(degree ~scaled_FledgeOrder2 + Chick.weight + scale.age + (1|Tag), data= new_data)
+summary(d0)
+par(mfrow = c(1,1))
+plot(d0)
+plot(residuals(d0) ~ fitted(d0), main = "residuals v.s. Fitted")
+qqnorm(residuals(d0))
+qqline(residuals(d0))
+shapiro.test(resid(d0))#not normal
+
+#Even if the transformation doesn't ameliorate the assumptions, I can based on this article https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/2041-210X.13434 suppose that my mixed model is robust against the normality assumption
+
+library(car)
+vif(d0)
+#simplify model by checking for multi-collinearity
 require(car)
-vif(d)#High VIF values --> problems of multicolinearity 
-drop1(d, test="F")
-#remove the interactions of high VIF and that are not significant
-d1 <- lmer(degree ~ scaled_FledgeOrder2*age + Chick.weight + (1|Tag) + (1|Family:Tag) , data=new_data)
-vif(d1)
-summary(d1)
+# scaled_FledgeOrder2          scale(age)        Chick.weight 
+# 1.121848            1.000856            1.122754 
 
-b <- lmer(betweenness ~scaled_FledgeOrder2*age + Chick.weight*scaled_FledgeOrder2 + Chick.weight*age + (1|Tag)+ (1|Family:Tag) , data=new_data)
-vif(b)
-drop1(b, test="F")
-b1 <- lmer(betweenness ~scaled_FledgeOrder2*age + Chick.weight + (1|Tag)+ (1|Family:Tag) , data=new_data)
-vif(b1)
-summary(b1)
+# No multi-collinearity problems
+
+
+#betweenness
+hist(new_data$betweenness)#skewed distribution --> normality is not respected, see further steps
+b <- lmer(betweenness ~scaled_FledgeOrder2*scale.age + Chick.weight*scaled_FledgeOrder2 + Chick.weight*scale.age + (1|Tag)+ (1|Family:Tag) , data=new_data)
+qqnorm(resid(b))
+qqline(resid(b))
+shapiro.test(resid(b))#not normal
+log <- log((new_data$betweenness)+1)#to handel the zero values
+hist(log)#seems better
+bb <- lmer(log ~scaled_FledgeOrder2*scale.age + Chick.weight*scaled_FledgeOrder2 + Chick.weight*scale.age + (1|Tag)+ (1|Family:Tag) , data=new_data)
+#model failed to converge
+bb <- lmer(log ~scaled_FledgeOrder2*scale.age + Chick.weight*scaled_FledgeOrder2 + Chick.weight*scale.age + (1|Tag) , data=new_data)
+qqnorm(resid(bb))
+qqline(resid(bb))
+shapiro.test(resid(bb))#still not normal, but already a better match. 
+
+drop1(bb, test="F") #Leave the interactions out
+b0 <- lmer(log ~scaled_FledgeOrder2 + Chick.weight + scale.age + (1|Tag)+ (1|Family:Tag) , data=new_data)
+#Here the two random effects don't seem to cause  convergence problems...
+summary(b0)
+qqnorm(resid(b0))
+qqline(resid(b0))
+shapiro.test(resid(b0)) #normality is not met
+
+#If I suppose my model is robust against non normality (https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/2041-210X.13434)
+b01 <- lmer(betweenness ~scaled_FledgeOrder2 + Chick.weight + scale.age + (1|Tag)+ (1|Family:Tag) , data=new_data)
+summary(b01)
+library(car)
+vif(b01)
+#scaled_FledgeOrder2        Chick.weight           scale.age 
+# 1.177683            1.179279            1.001471
+#No multi-collinearity problems
+
 
 
 
 # SW: there is a very useful library that can help with interpretation of most statistical tests
 library(report)
-report(d1)
-report(b1)
+report(d0)
+report(b01)
 
 #no effect of fledge order on the position in the social network
 
 
 ##Try the models when scaled_FledgeOrder2 is a factor
-max(new_data$scaled_FledgeOrder2)#1
+min(new_data$scaled_FledgeOrder2)#0
+
+# SW: I've changed this to a 0 (0 are first fledglings, higher is others)
 new_data <- new_data %>%
-  mutate(factor.order = ifelse(scaled_FledgeOrder2 == 1, "First", "Other"))
+  mutate(factor.order = ifelse(scaled_FledgeOrder2 == 0, "First", "Other"))
+View(new_data)
 View(new_data)
 new_data$factor.order <- as.factor(new_data$factor.order)
 str(new_data$factor.order)
 
+#degree
 library(lme4)
 library(lmerTest)
-dd <- lmer(degree ~ factor.order*age + Chick.weight*factor.order + Chick.weight*age + (1|Tag) + (1|Family:Tag) , data=new_data)
-summary(d)#doesn't give p-values because did not put library(lmerTest)!!!Don't forget
+hist(new_data$degree)
+d <- lmer(degree ~ factor.order*scale.age + Chick.weight*factor.order + Chick.weight*scale.age + (1|Tag) + (1|Family:Tag) , data=new_data)
+qqnorm(resid(d))
+qqline(resid(d))
+shapiro.test(resid(d))#not normal --> mixed models are robust against non normality (https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/2041-210X.13434)
+drop1(d, test="F")#leave out the interactions, they are not significant
 
-#simplify model by checking for multicolinearity
+d0 <- lmer(degree ~ factor.order + Chick.weight + scale.age + (1|Tag)+ (1|Family:Tag) , data=new_data)
+summary(d0)
+#very low variance family:Tag, could this be left out? If so, it does't influence the results that much, still no significance
+
+#simplify model by checking for multi-collinearity
 require(car)
-vif(dd)#High VIF values --> problems of multicolinearity 
+vif(d0)#High VIF values --> problems of multicolinearity 
 drop1(d, test="F")
-#remove the interactions of high VIF and that are not significant
-dd1 <- lmer(degree ~ factor.order*age + Chick.weight + Chick.weight*age + (1|Tag) + (1|Family:Tag) , data=new_data)
-vif(dd1)
-drop1(dd1, test="F")
-dd2 <- lmer(degree ~ factor.order + age + Chick.weight  + (1|Tag) + (1|Family:Tag) , data=new_data)
-vif(dd2)
-summary(dd2)
+#factor.order Chick.weight    scale.age 
+#1.088888     1.089612     1.000852 
 
-bb <- lmer(betweenness ~ factor.order*age + Chick.weight*factor.order + Chick.weight*age  + (1|Tag)+ (1|Family:Tag) , data=new_data)
-vif(bb)
-drop1(bb, test="F")
-bb1 <- lmer(betweenness ~factor.order + Chick.weight +age  + (1|Tag)+ (1|Family:Tag) , data=new_data)
-vif(bb1)
-summary(bb1)
+#no multi-collinearity problems
 
+#betweenness
+b <- lmer(betweenness ~ factor.order*scale.age + Chick.weight*factor.order + Chick.weight*scale.age  + (1|Tag)+ (1|Family:Tag) , data=new_data)
+drop1(b, test="F")#interactions are unsignificant, leave them out
 
-#Again, no effect of fledge order
+b0 <- lmer(betweenness ~factor.order + Chick.weight + scale.age  + (1|Tag)+ (1|Family:Tag) , data=new_data)
+#problem with convergence --> leave out the random factor (1|Family:Tag)
+
+b1 <- lmer(betweenness ~factor.order + Chick.weight + scale.age  + (1|Tag) , data=new_data)
+vif(b1)
+#factor.order Chick.weight    scale.age 
+#1.120728     1.122299     1.001596 
+#no problems with multi-collinearity
+summary(b1)
+
+##Try when last sibling versus all other instead of the first. 
+max(new_data$scaled_FledgeOrder2)#1
+
+# 1 are first fledglings, higher is others
+library(dplyr)
+new_data <- new_data %>%
+  mutate(factor.order2 = ifelse(scaled_FledgeOrder2 == 1, "Last", "Other"))
+View(new_data)
+which(new_data$factor.order2=="Last")#only 3 individuals, not enough to make an analysis.
 
 
 
 # SW: you don't have to use brms - this is just the package I am most familiar with. 
 # Here is a tutorial if you are interested in using this package: https://ourcodingclub.github.io/tutorials/brms/
 # also, I may not have specified the model entirely correctly (such as which family to use), so take it with a grain of salt
-#SW: to test degree and betweenness at the same time, you can use something along those lines:
-#I still have to check this out
-install.packages("rstan")
-install.packages("MCMCglmm")
+
+#SW: to test degree and betweenness at the same time: use package brms
 install.packages("brms")
+##EZ: I have problems with brms, it seams to heavy for my computer to even install the package. I still have to solve this issue
+
+# SW: I've been trying a couple of things here - the models seem to fit pretty poorly atm. 
 library(brms)
-m <-
+
+m1 <-
   brm(
     mvbind(degree, betweenness) ~ factor.order * age +  (1 | Tag) + (1 | Family:Tag) , 
     data = new_data
   )
     summary(m)
+=======
+    mvbind(degree, betweenness) ~ scaled_FledgeOrder2 * scale(age) + scale(Chick.weight)*scale(age) +  (1 | Tag) , 
+    data = new_data
+  )
 
+summary(m1)
+pp_check(m1, resp="degree")
+pp_check(m1, resp="betweenness")
+# these look like pretty poor models
+
+
+m2 <-
+  brm(
+    mvbind(degree, betweenness) ~ factor.order * scale(age) + scale(Chick.weight)*scale(age) +  (1 | Tag) , 
+    data = new_data
+  )
+
+
+summary(m2)
+pp_check(m2, resp="degree")
+pp_check(m2, resp="betweenness")
+
+
+#####Test for assortment in fledge order
+install.packages("assortnet")#issues when installing
 
 
 
