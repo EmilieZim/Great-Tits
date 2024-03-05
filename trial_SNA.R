@@ -1026,13 +1026,16 @@ summary(bb1)
 # also, I may not have specified the model entirely correctly (such as which family to use), so take it with a grain of salt
 #SW: to test degree and betweenness at the same time, you can use something along those lines:
 #I still have to check this out
+install.packages("rstan")
+install.packages("MCMCglmm")
+install.packages("brms")
 library(brms)
 m <-
   brm(
-    mvbind(degree, betweenness) ~ as.factor(Fledge.order) * age +  (1 | Tag) + (1 | Family:Tag), family= , 
+    mvbind(degree, betweenness) ~ factor.order * age +  (1 | Tag) + (1 | Family:Tag) , 
     data = new_data
   )
-summary(m)
+    summary(m)
 
 
 
