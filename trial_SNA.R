@@ -991,6 +991,7 @@ qqline(residuals(d0))
 shapiro.test(resid(d0))#not normal
 
 #Even if the transformation doesn't ameliorate the assumptions, I can based on this article https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/2041-210X.13434 suppose that my mixed model is robust against the normality assumption
+#Hence, the model I take into account is: d0
 
 library(car)
 vif(d0)
@@ -1072,11 +1073,10 @@ summary(d0)
 
 #simplify model by checking for multi-collinearity
 require(car)
-vif(d0)#High VIF values --> problems of multicolinearity 
+vif(d0)
 drop1(d, test="F")
 #factor.order Chick.weight    scale.age 
 #1.088888     1.089612     1.000852 
-
 #no multi-collinearity problems
 
 #betweenness
@@ -1107,11 +1107,10 @@ which(new_data$factor.order2=="Last")#only 3 individuals, not enough to make an 
 
 # SW: you don't have to use brms - this is just the package I am most familiar with. 
 # Here is a tutorial if you are interested in using this package: https://ourcodingclub.github.io/tutorials/brms/
-# also, I may not have specified the model entirely correctly (such as which family to use), so take it with a grain of salt
 
 #SW: to test degree and betweenness at the same time: use package brms
 install.packages("brms")
-##EZ: I have problems with brms, it seams to heavy for my computer to even install the package. I still have to solve this issue
+##EZ: I have problems with brms --> still unsolved
 
 # SW: I've been trying a couple of things here - the models seem to fit pretty poorly atm. 
 library(brms)
@@ -1145,9 +1144,43 @@ pp_check(m2, resp="degree")
 pp_check(m2, resp="betweenness")
 
 
-#####Test for assortment in fledge order
-install.packages("assortnet")#issues when installing
+#####Test for assortment in fledge order 
+install.packages("assortnet")#issues when installing -> now resolved
+library("assortnet")
 
+
+#Do I use the networks made for each week or the network based on all weeks taken together?
+net <- graph_from_adjacency_matrix(network,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+
+#next code taken from Github 
+#Not sure how to modifiy it so it matches my data
+set.seed(5)
+
+assortment.function <- function(network){
+  vec.rand <- NULL
+  assort <- assortment.discrete(graph=, types = , weighted = TRUE)
+  object <- NULL
+  for(i in 1:1000){
+    # we use node based permutation
+    rand.phenotype <- sample(new_data$scaled_FledgeOrder2)
+    r.rand <- assortment.discrete(graph = , types = rand.phenotype)$r
+    vec.rand[i] <- r.rand
+    
+  }
+  # extract where the real r falls among the computed r (which corresponds to our p value)
+  p <- length(which(vec.rand > assort$r))/1000
+  object$p <- p
+  object$r <- assort$r
+  return(object)
+}
+
+#
+assortment.function(network =net)
+
+# $p
+# 
+# $r
+# 
 
 
 
