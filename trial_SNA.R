@@ -28,13 +28,13 @@ net.data.summer <- subset(net.data.summer, net.data.summer$week>=4)
 # this is how you build groups from the data stream 
 # your laptop will likely not have enough memory to run this, so I sent you the output (gmm.summer)
 
-# gmm.summer <- gmmevents(
-#   time = net.data.summer$Date.Time,
-#   identity = net.data.summer$PIT,
-#   location = net.data.summer$location,
-#   verbose = TRUE,
-#   splitGroups = TRUE
-# )
+gmm.summer <- gmmevents(
+  time = net.data.summer$Date.Time,
+  identity = net.data.summer$PIT,
+  location = net.data.summer$location,
+  verbose = TRUE,
+  splitGroups = TRUE
+)
 
 # it's stored in an RData object which you can load
 load("gmm.summer.RData")
@@ -1156,26 +1156,44 @@ net <- graph_from_adjacency_matrix(network,mode= c("undirected"), diag=FALSE, we
 #Not sure how to modifiy it so it matches my data
 set.seed(5)
 
-assortment.function <- function(network){
+# we need a vector of length individuals in the network
+fake.fl.order <- seq(from=-1,to=1,length.out=187)
+
+
+# This extracts the fledge order for each individual in the network
+# vec then goes straight into the below function (as fledge.order) to calculate assortment
+
+vec <- NULL
+for(i in rownames(network)){
+  i.fledge.order <- unique(subset(fd$Fledge.order, fd$Tag==i))
+  if(length(i.fledge.order)==0){
+    i.fledge.order <- NA
+  }
+  vec[which(rownames(network)==i)] <- i.fledge.order
+}
+
+
+assortment.function <- function(network.in, fledge.order){
   vec.rand <- NULL
-  assort <- assortment.discrete(graph=, types = , weighted = TRUE)
+  assort <- assortment.continuous(graph=network.in, vertex_values = fledge.order, weighted = TRUE)
   object <- NULL
   for(i in 1:1000){
     # we use node based permutation
-    rand.phenotype <- sample(new_data$scaled_FledgeOrder2)
-    r.rand <- assortment.discrete(graph = , types = rand.phenotype)$r
+    rand.phenotype <- sample(fledge.order)
+    r.rand <- assortment.continuous(graph = network.in, vertex_values = rand.phenotype, weighted =TRUE)$r
     vec.rand[i] <- r.rand
-    
   }
   # extract where the real r falls among the computed r (which corresponds to our p value)
-  p <- length(which(vec.rand > assort$r))/1000
+  p <- length(which(vec.rand < assort$r))/1000
   object$p <- p
   object$r <- assort$r
   return(object)
 }
 
 #
-assortment.function(network =net)
+assort.test <- assortment.function(network.in = network, fledge.order = vec)
+
+# p is significant if either below 0.05 or above 0.95
 
 # $p
 # 
