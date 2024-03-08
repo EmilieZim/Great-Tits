@@ -1153,17 +1153,17 @@ library("assortnet")
 net <- graph_from_adjacency_matrix(network,mode= c("undirected"), diag=FALSE, weighted=TRUE)
 
 #next code taken from Github 
-#Not sure how to modifiy it so it matches my data
+#Not sure how to modify it so it matches my data
 set.seed(5)
 
 assortment.function <- function(network){
   vec.rand <- NULL
-  assort <- assortment.discrete(graph=, types = , weighted = TRUE)
+  assort <- assortment.discrete(graph=net, types = new_data$scaled_FledgeOrder2 , weighted = TRUE)
   object <- NULL
   for(i in 1:1000){
     # we use node based permutation
     rand.phenotype <- sample(new_data$scaled_FledgeOrder2)
-    r.rand <- assortment.discrete(graph = , types = rand.phenotype)$r
+    r.rand <- assortment.discrete(graph = net, types = rand.phenotype)$r
     vec.rand[i] <- r.rand
     
   }
@@ -1177,9 +1177,13 @@ assortment.function <- function(network){
 #
 assortment.function(network =net)
 
-# $p
+p <- length(which(vec.rand > assort$r))/1000
+object$p <- p
+object$r <- assort$r
+return(object)
+$p
 # 
-# $r
+r
 # 
 
 
