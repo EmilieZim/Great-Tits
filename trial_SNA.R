@@ -1185,30 +1185,37 @@ network.in <- network
 fledge.order <- na.omit(vec) #prob because then not of the same length as network.in. But otherwise, also prob because contains NA
 
 
-assortment.function <- function(network.in, fledge.order){
+
+assortment.function <- function(network.in, vec){
   #make a function that will take data from the network.in and te fledge.order
   vec.rand <- NULL #make an empty vector
-  assort <- assortment.discrete(graph=network.in, types = fledge.order , weighted = TRUE)
+  net <- network.in[-which(is.na(vec)), -which(is.na(vec))]
+  vec1 <- na.omit(vec) 
+  assort <- assortment.discrete(graph=net, types = vec1 , weighted = TRUE)
   object <- NULL #make a new empty vector
   for(i in 1:1000){
     # we use node based permutation for i
     # i will take randomly Tags and permute it 1000 times
-    rand.phenotype <- sample(fledge.order)
+    rand.phenotype <- sample(vec1)
     r.rand <- assortment.discrete(graph = network.in, types = rand.phenotype, weighted = TRUE)$r
     } #this gives the r of the assortment, the observed r
     vec.rand[i] <- r.rand #now I have a vector called vec.rand that contains the r values of the assortment that are all obtained randomly by the permutations
   }
   # extract where the real r falls among the computed r (which corresponds to our p value)
-  p <- length(which(vec.rand < assort$r))/1000 #compare the real r we got from our data to the one obtained by permutation to see whether the r obtained with our data is significant or not.
-  #Because if we do a histogram we see that the distribution of the random r falls very far left from the observed r, we know that we have to do 1-p, hence the symbole <
+  p <- length(which(vec.rand > assort$r))/1000 #compare the real r we got from our data to the one obtained by permutation to see whether the r obtained with our data is significant or not.
+  #Because if we do a histogram we see that the distribution of the random r falls very far left from the observed r, we know that we have to do 1-p, hence the symbole <. If not the case, then symbole in the other way.
   object$p <- p
   object$r <- assort$r
   return(object) #now when I run it, I ask RStudio to return to me the p and r saved in object. That becomes the output when I run the function
 }
 
+length(vec1)
+length(rownames(net)) #great they correspond, same length
+
+
 object
 # p is significant if either below 0.05 or above 0.95
-#p=0.01
+#p=0.001
 
 
 ####multivariate analysis
