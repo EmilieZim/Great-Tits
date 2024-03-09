@@ -1197,7 +1197,7 @@ assortment.function <- function(network.in, vec){
     # we use node based permutation for i
     # i will take randomly Tags and permute it 1000 times
     rand.phenotype <- sample(vec1)
-    r.rand <- assortment.discrete(graph = network.in, types = rand.phenotype, weighted = TRUE)$r
+    r.rand <- assortment.discrete(graph = net, types = rand.phenotype, weighted = TRUE)$r
     } #this gives the r of the assortment, the observed r
     vec.rand[i] <- r.rand #now I have a vector called vec.rand that contains the r values of the assortment that are all obtained randomly by the permutations
   }
