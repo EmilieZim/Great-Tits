@@ -28,13 +28,13 @@ net.data.summer <- subset(net.data.summer, net.data.summer$week>=4)
 # this is how you build groups from the data stream 
 # your laptop will likely not have enough memory to run this, so I sent you the output (gmm.summer)
 
-# gmm.summer <- gmmevents(
-#   time = net.data.summer$Date.Time,
-#   identity = net.data.summer$PIT,
-#   location = net.data.summer$location,
-#   verbose = TRUE,
-#   splitGroups = TRUE
-# )
+gmm.summer <- gmmevents(
+  time = net.data.summer$Date.Time,
+  identity = net.data.summer$PIT,
+  location = net.data.summer$location,
+  verbose = TRUE,
+  splitGroups = TRUE
+)
 
 # it's stored in an RData object which you can load
 load("gmm.summer.RData")
@@ -1149,43 +1149,66 @@ install.packages("assortnet")#issues when installing -> now resolved
 library("assortnet")
 
 
-#Do I use the networks made for each week or the network based on all weeks taken together?
-net <- graph_from_adjacency_matrix(network,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+#Take first the initial network, that that contains all the weeks
+library("asnipe")
+network <- get_network(gbi, data_format = "GBI",
+                       association_index = "SRI")
 
-#next code taken from Github 
-#Not sure how to modify it so it matches my data
-set.seed(5)
 
-assortment.function <- function(network){
-  vec.rand <- NULL
-  assort <- assortment.discrete(graph=net, types = new_data$scaled_FledgeOrder2 , weighted = TRUE)
-  object <- NULL
-  for(i in 1:1000){
-    # we use node based permutation
-    rand.phenotype <- sample(new_data$scaled_FledgeOrder2)
-    r.rand <- assortment.discrete(graph = net, types = rand.phenotype)$r
-    vec.rand[i] <- r.rand
-    
+# we need a vector of length individuals in the network
+fake.fl.order <- seq(from=-1,to=1,length.out=187) #example --> then should be assortment.continuous
+
+fd$Fledge.order#Its discrete
+length(which(fd$Who=="Chick"& fd$Location =="Castle"& fd$Fledge.order>0))#113 individuals
+length(rownames(network))
+
+
+# This extracts the fledge order for each individual in the network
+# vec then goes straight into the below function (as fledge.order) to calculate assortment
+
+vec <- NULL #the vector is now empty but will be filled
+#for(i) means that I create a location called i that will contain the names of my initial network
+for(i in rownames(network)){
+  i.fledge.order <- unique(subset(fd$Fledge.order, fd$Tag==i)) #i.fledge.order becomes all the individuals that have a fledge.order for wich their Tag equals to i
+  if(length(i.fledge.order)==0){ #if i.fledge.order has no length, that means that there is no fledge.orde, therefore that means that we identify the adults that are not the parents of the chicks
+    i.fledge.order <- NA #These adults received then now a value of NA
   }
-  # extract where the real r falls among the computed r (which corresponds to our p value)
-  p <- length(which(vec.rand > assort$r))/1000
-  object$p <- p
-  object$r <- assort$r
-  return(object)
+  vec[which(rownames(network)==i)] <- i.fledge.order #The empty vector will now contains the row of the network (the tags) that are equal to i, meaning the rows that are also found in the fd data. NB: these rownames (the Tags) have to be of same length and in the same order
 }
 
-#
-assortment.function(network =net)
+length(vec)#187, as the legth of the network
+length(na.omit(vec))#only 45 Chicks in the summer that have a minimum of 5 obsevations and that have a fledge order
 
-p <- length(which(vec.rand > assort$r))/1000
-object$p <- p
-object$r <- assort$r
-return(object)
-$p
-# 
-r
-# 
 
+#assort.test <- assortment.function(network.in = network, fledge.order =vec)#does not work
+network.in <- network
+fledge.order <- na.omit(vec) #prob because then not of the same length as network.in. But otherwise, also prob because contains NA
+
+
+assortment.function <- function(network.in, fledge.order){
+  #make a function that will take data from the network.in and te fledge.order
+  vec.rand <- NULL #make an empty vector
+  assort <- assortment.discrete(graph=network.in, types = fledge.order , weighted = TRUE)
+  object <- NULL #make a new empty vector
+  for(i in 1:1000){
+    # we use node based permutation for i
+    # i will take randomly Tags and permute it 1000 times
+    rand.phenotype <- sample(fledge.order)
+    r.rand <- assortment.discrete(graph = network.in, types = rand.phenotype, weighted = TRUE)$r
+    } #this gives the r of the assortment, the observed r
+    vec.rand[i] <- r.rand #now I have a vector called vec.rand that contains the r values of the assortment that are all obtained randomly by the permutations
+  }
+  # extract where the real r falls among the computed r (which corresponds to our p value)
+  p <- length(which(vec.rand < assort$r))/1000 #compare the real r we got from our data to the one obtained by permutation to see whether the r obtained with our data is significant or not.
+  #Because if we do a histogram we see that the distribution of the random r falls very far left from the observed r, we know that we have to do 1-p, hence the symbole <
+  object$p <- p
+  object$r <- assort$r
+  return(object) #now when I run it, I ask RStudio to return to me the p and r saved in object. That becomes the output when I run the function
+}
+
+object
+# p is significant if either below 0.05 or above 0.95
+#p=0.01
 
 
 ####multivariate analysis
