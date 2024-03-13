@@ -228,7 +228,7 @@ dim(gbi1.sub)
 # that gives you 138 rows and 12 columns (=individuals)
 #EZ: So 12 individuals that have been seen at least 5 times in the first week. 
 
-
+library(asnipe)
 network_week1 <- get_network(gbi1.sub, data_format="GBI",
                              association_index="SRI")
 
@@ -1002,6 +1002,23 @@ require(car)
 
 # No multi-collinearity problems
 
+#Best to indeed use glmer because then the model is more robust against assumption deviations
+library(lme4)
+library(lmerTest)
+d_glmer0 <- glmer(degree ~scaled_FledgeOrder2*scale.age + Chick.weight*scaled_FledgeOrder2 + Chick.weight*scale.age + (1|Tag) + (1|Tag:Family), data= new_data, family=gaussian)
+#model failed to converge -> has to be simplified, so I chose to eave a random factor behind
+d_glmer1 <- glmer(degree ~scaled_FledgeOrder2*scale.age + Chick.weight*scaled_FledgeOrder2 + Chick.weight*scale.age + (1|Tag), data= new_data, family=gaussian)
+report(d_glmer1)
+summary(d_glmer1)#I leave out the interactions as they are not significant
+d_glmer2 <- glmer(degree ~scaled_FledgeOrder2 + scale.age + Chick.weight + (1|Tag), data= new_data, family=gaussian)
+summary(d_glmer2)
+Anova(d_glmer2)#to extract the p-values that are not in the output
+vif(d_glmer2)#no multi-collinearity problems
+library(report)
+report(d_glmer2)#also shows the p-values
+#Nothing is significant
+
+
 
 #betweenness
 hist(new_data$betweenness)#skewed distribution --> normality is not respected, see further steps
@@ -1035,7 +1052,21 @@ vif(b01)
 # 1.177683            1.179279            1.001471
 #No multi-collinearity problems
 
-
+#Best to indeed use glmer because then the model is more robust against assumption deviations
+library(lme4)
+library(lmerTest)
+b_glmer0 <- glmer(betweenness ~scaled_FledgeOrder2*scale.age + Chick.weight*scaled_FledgeOrder2 + Chick.weight*scale.age + (1|Tag) + (1|Tag:Family), data= new_data, family=gaussian)
+#model failed to converge -> has to be simplified, so I chose to eave a random factor behind
+b_glmer1 <- glmer(betweenness ~scaled_FledgeOrder2*scale.age + Chick.weight*scaled_FledgeOrder2 + Chick.weight*scale.age + (1|Tag), data= new_data, family=gaussian)
+summary(b_glmer1)#I leave out the interactions as they are not significant
+report(b_glmer1)
+b_glmer2 <- glmer(betweenness ~scaled_FledgeOrder2 + scale.age + Chick.weight + (1|Tag), data= new_data, family=gaussian)
+summary(b_glmer2)
+Anova(b_glmer2)#to extract the p-values that are not in the output
+vif(b_glmer2)#no multi-collinearity problems
+library(report)
+report(b_glmer2)#also shows the p-values
+#Nothing is significant
 
 
 # SW: there is a very useful library that can help with interpretation of most statistical tests
@@ -1050,6 +1081,7 @@ report(b01)
 min(new_data$scaled_FledgeOrder2)#0
 
 # SW: I've changed this to a 0 (0 are first fledglings, higher is others)
+library(dplyr)
 new_data <- new_data %>%
   mutate(factor.order = ifelse(scaled_FledgeOrder2 == 0, "First", "Other"))
 View(new_data)
@@ -1079,6 +1111,18 @@ drop1(d, test="F")
 #1.088888     1.089612     1.000852 
 #no multi-collinearity problems
 
+#with glmer
+df_glmer0 <- glmer(degree ~ factor.order*scale.age + Chick.weight*factor.order + Chick.weight*scale.age + (1|Tag) + (1|Family:Tag) , data=new_data, family=gaussian)
+summary(df_glmer0)
+Anova(df_glmer0)
+report(df_glmer0) #the interactions are not significant, hence I leave them out
+df_glmer1 <- glmer(degree ~ factor.order + scale.age + Chick.weight + (1|Tag) + (1|Family:Tag) , data=new_data, family=gaussian)
+summary(df_glmer1)
+Anova(df_glmer1)
+report(df_glmer1)
+vif(df_glmer1)#no prob with multi-collinearity
+
+
 #betweenness
 b <- lmer(betweenness ~ factor.order*scale.age + Chick.weight*factor.order + Chick.weight*scale.age  + (1|Tag)+ (1|Family:Tag) , data=new_data)
 drop1(b, test="F")#interactions are unsignificant, leave them out
@@ -1092,6 +1136,22 @@ vif(b1)
 #1.120728     1.122299     1.001596 
 #no problems with multi-collinearity
 summary(b1)
+
+#with glmer
+bf_glmer0 <- glmer(betweenness ~ factor.order*scale.age + Chick.weight*factor.order + Chick.weight*scale.age  + (1|Tag)+ (1|Family:Tag) , data=new_data, family=gaussian)
+summary(bf_glmer0)
+Anova(bf_glmer0)
+report(bf_glmer0)
+#I leave out the interactions
+bf_glmer1 <- glmer(betweenness ~ factor.order + scale.age + Chick.weight + (1|Tag)+ (1|Family:Tag) , data=new_data, family=gaussian)
+#prob with convergence, so I leave out a random effect
+bf_glmer2 <- glmer(betweenness ~ factor.order + scale.age + Chick.weight + (1|Tag) , data=new_data, family=gaussian)
+summary(bf_glmer2)
+Anova(bf_glmer2)
+report(bf_glmer2)
+vif(bf_glmer2)#no prob with multi-collinearity
+#nothing is significant
+
 
 ##Try when last sibling versus all other instead of the first. 
 max(new_data$scaled_FledgeOrder2)#1
@@ -1165,57 +1225,68 @@ length(rownames(network))
 
 # This extracts the fledge order for each individual in the network
 # vec then goes straight into the below function (as fledge.order) to calculate assortment
+network.in <- network
+
+
 
 vec <- NULL #the vector is now empty but will be filled
 #for(i) means that I create a location called i that will contain the names of my initial network
-for(i in rownames(network)){
+for(i in rownames(network.in)){
   i.fledge.order <- unique(subset(fd$Fledge.order, fd$Tag==i)) #i.fledge.order becomes all the individuals that have a fledge.order for wich their Tag equals to i
   if(length(i.fledge.order)==0){ #if i.fledge.order has no length, that means that there is no fledge.orde, therefore that means that we identify the adults that are not the parents of the chicks
     i.fledge.order <- NA #These adults received then now a value of NA
   }
-  vec[which(rownames(network)==i)] <- i.fledge.order #The empty vector will now contains the row of the network (the tags) that are equal to i, meaning the rows that are also found in the fd data. NB: these rownames (the Tags) have to be of same length and in the same order
+  vec[which(rownames(network.in)==i)] <- i.fledge.order #The empty vector will now contains the row of the network (the tags) that are equal to i, meaning the rows that are also found in the fd data. NB: these rownames (the Tags) have to be of same length and in the same order
 }
 
-length(vec)#187, as the legth of the network
-length(na.omit(vec))#only 45 Chicks in the summer that have a minimum of 5 obsevations and that have a fledge order
+length(vec)#187, as the length of the network
+length(na.omit(vec))#only 45 Chicks in the summer that have a minimum of 5 observations and that have a fledge order
 
 
-#assort.test <- assortment.function(network.in = network, fledge.order =vec)#does not work
-network.in <- network
-fledge.order <- na.omit(vec) #prob because then not of the same length as network.in. But otherwise, also prob because contains NA
+# SW: I have moved this outside of the function - best to have your clean data going into the function
 
-
+net <- network.in[-which(is.na(vec)), -which(is.na(vec))]
+length(rownames(net))
+vec1 <- na.omit(vec)
+length(vec1)
 
 assortment.function <- function(network.in, vec){
-  #make a function that will take data from the network.in and te fledge.order
+  #make a function that will take data from the network.in and the created vector (containing the fledge order)
   vec.rand <- NULL #make an empty vector
-  net <- network.in[-which(is.na(vec)), -which(is.na(vec))]
-  vec1 <- na.omit(vec) 
-  assort <- assortment.discrete(graph=net, types = vec1 , weighted = TRUE)
+  assort <- assortment.discrete(graph=net, types = vec , weighted = TRUE)
   object <- NULL #make a new empty vector
   for(i in 1:1000){
     # we use node based permutation for i
     # i will take randomly Tags and permute it 1000 times
     rand.phenotype <- sample(vec1)
     r.rand <- assortment.discrete(graph = net, types = rand.phenotype, weighted = TRUE)$r
-    } #this gives the r of the assortment, the observed r
+    #this gives the r of the assortment, the observed r
     vec.rand[i] <- r.rand #now I have a vector called vec.rand that contains the r values of the assortment that are all obtained randomly by the permutations
   }
   # extract where the real r falls among the computed r (which corresponds to our p value)
-  p <- length(which(vec.rand > assort$r))/1000 #compare the real r we got from our data to the one obtained by permutation to see whether the r obtained with our data is significant or not.
+  p <- length(which(vec.rand < assort$r))/1000 #compare the real r we got from our data to the one obtained by permutation to see whether the r obtained with our data is significant or not.
   #Because if we do a histogram we see that the distribution of the random r falls very far left from the observed r, we know that we have to do 1-p, hence the symbole <. If not the case, then symbole in the other way.
   object$p <- p
   object$r <- assort$r
+  object$vec.rand <- vec.rand
   return(object) #now when I run it, I ask RStudio to return to me the p and r saved in object. That becomes the output when I run the function
 }
 
-length(vec1)
-length(rownames(net)) #great they correspond, same length
+assort <- assortment.function(network.in=net, vec = as.vector(fledge.order))
 
+assort$p
+assort$r
 
-object
+# this should plot the histogram and add the line
+hist(assort$vec.rand)
+abline(v=assort$r, col="red")
 # p is significant if either below 0.05 or above 0.95
-#p=0.001
+
+save.image(file="R.image.RData")
+
+
+#Assortnet for each week
+
 
 
 ####multivariate analysis
