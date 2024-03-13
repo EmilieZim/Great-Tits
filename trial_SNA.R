@@ -222,7 +222,7 @@ gbi1 <- gbi[1:138,]
 # we can do this by using column sums - i.e. we only include columns (individuals) with a column sum
 # of at least 5
 
-threshold <- 10
+threshold <- 5
 gbi1.sub <- gbi1[,colSums(gbi1)>=threshold]
 dim(gbi1.sub)
 # that gives you 138 rows and 12 columns (=individuals)
@@ -969,6 +969,9 @@ View(new_data)
 d <- lmer(degree ~scaled_FledgeOrder2*scale.age + Chick.weight*scaled_FledgeOrder2 + Chick.weight*scale.age + (1|Tag), data= new_data)
 qqnorm(residuals(d))
 qqline(residuals(d))
+hist(residuals(d))
+
+
 shapiro.test(resid(d))#not normal
 hist(new_data$degree)
 trans <- log(new_data$degree)#I have tried other transformations: sqrt, ^2, 1/degree...Nothing works
@@ -1117,26 +1120,19 @@ library(brms)
 
 m1 <-
   brm(
-    mvbind(degree, betweenness) ~ factor.order * age +  (1 | Tag) + (1 | Family:Tag) , 
-    data = new_data
+    mvbind(degree, betweenness) ~ scaled_FledgeOrder2*scale.age + Chick.weight*scaled_FledgeOrder2 + Chick.weight*scale.age + (1|Tag) + (1|Family:Tag) , data=new_data
   )
-    summary(m)
-=======
-    mvbind(degree, betweenness) ~ scaled_FledgeOrder2 * scale(age) + scale(Chick.weight)*scale(age) +  (1 | Tag) , 
-    data = new_data
-  )
+
+m2 <-   brm(
+      mvbind(degree, betweenness) ~ scaled_FledgeOrder2 * scale.age + Chick.weight *
+        scaled_FledgeOrder2 + Chick.weight * scale.age + (1 |Tag) + (1 | Family:Tag),
+      data = new_data
+    )
 
 summary(m1)
 pp_check(m1, resp="degree")
 pp_check(m1, resp="betweenness")
 # these look like pretty poor models
-
-
-m2 <-
-  brm(
-    mvbind(degree, betweenness) ~ factor.order * scale(age) + scale(Chick.weight)*scale(age) +  (1 | Tag) , 
-    data = new_data
-  )
 
 
 summary(m2)
@@ -1184,21 +1180,22 @@ length(na.omit(vec))#only 45 Chicks in the summer that have a minimum of 5 obsev
 network.in <- network
 fledge.order <- na.omit(vec) #prob because then not of the same length as network.in. But otherwise, also prob because contains NA
 
+# SW: I have moved this outside of the function - best to have your clean data going into the function
+net <- network.in[-which(is.na(vec)), -which(is.na(vec))]
 
 
 assortment.function <- function(network.in, vec){
   #make a function that will take data from the network.in and te fledge.order
   vec.rand <- NULL #make an empty vector
-  net <- network.in[-which(is.na(vec)), -which(is.na(vec))]
-  vec1 <- na.omit(vec) 
-  assort <- assortment.discrete(graph=net, types = vec1 , weighted = TRUE)
+  #net <- network.in[-which(is.na(vec)), -which(is.na(vec))]
+  assort <- assortment.discrete(graph=net, types = vec , weighted = TRUE)
   object <- NULL #make a new empty vector
   for(i in 1:1000){
     # we use node based permutation for i
     # i will take randomly Tags and permute it 1000 times
     rand.phenotype <- sample(vec1)
     r.rand <- assortment.discrete(graph = net, types = rand.phenotype, weighted = TRUE)$r
-    } #this gives the r of the assortment, the observed r
+     #this gives the r of the assortment, the observed r
     vec.rand[i] <- r.rand #now I have a vector called vec.rand that contains the r values of the assortment that are all obtained randomly by the permutations
   }
   # extract where the real r falls among the computed r (which corresponds to our p value)
@@ -1206,16 +1203,30 @@ assortment.function <- function(network.in, vec){
   #Because if we do a histogram we see that the distribution of the random r falls very far left from the observed r, we know that we have to do 1-p, hence the symbole <. If not the case, then symbole in the other way.
   object$p <- p
   object$r <- assort$r
+  object$vec.rand <- vec.rand
   return(object) #now when I run it, I ask RStudio to return to me the p and r saved in object. That becomes the output when I run the function
 }
+
+
+assort <- assortment.function(network.in=net, vec = as.vector(fledge.order))
+
+# SW: I'm saving the current workspace so I can just load it again next time without having to rerun everything
+save.image(file="R.image.RData")
 
 length(vec1)
 length(rownames(net)) #great they correspond, same length
 
 
-object
+assort$p
+assort$r
 # p is significant if either below 0.05 or above 0.95
-#p=0.001
+#p=0.717
+
+# this should plot the histogram and add the line
+hist(assort$vec.rand)
+abline(v=assort$r, col="red")
+
+
 
 
 ####multivariate analysis
