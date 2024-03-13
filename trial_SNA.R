@@ -222,7 +222,7 @@ gbi1 <- gbi[1:138,]
 # we can do this by using column sums - i.e. we only include columns (individuals) with a column sum
 # of at least 5
 
-threshold <- 10
+threshold <- 5
 gbi1.sub <- gbi1[,colSums(gbi1)>=threshold]
 dim(gbi1.sub)
 # that gives you 138 rows and 12 columns (=individuals)
@@ -969,6 +969,9 @@ View(new_data)
 d <- lmer(degree ~scaled_FledgeOrder2*scale.age + Chick.weight*scaled_FledgeOrder2 + Chick.weight*scale.age + (1|Tag), data= new_data)
 qqnorm(residuals(d))
 qqline(residuals(d))
+hist(residuals(d))
+
+
 shapiro.test(resid(d))#not normal
 hist(new_data$degree)
 trans <- log(new_data$degree)#I have tried other transformations: sqrt, ^2, 1/degree...Nothing works
@@ -1177,26 +1180,19 @@ library(brms)
 
 m1 <-
   brm(
-    mvbind(degree, betweenness) ~ factor.order * age +  (1 | Tag) + (1 | Family:Tag) , 
-    data = new_data
+    mvbind(degree, betweenness) ~ scaled_FledgeOrder2*scale.age + Chick.weight*scaled_FledgeOrder2 + Chick.weight*scale.age + (1|Tag) + (1|Family:Tag) , data=new_data
   )
-    summary(m)
-=======
-    mvbind(degree, betweenness) ~ scaled_FledgeOrder2 * scale(age) + scale(Chick.weight)*scale(age) +  (1 | Tag) , 
-    data = new_data
-  )
+
+m2 <-   brm(
+      mvbind(degree, betweenness) ~ scaled_FledgeOrder2 * scale.age + Chick.weight *
+        scaled_FledgeOrder2 + Chick.weight * scale.age + (1 |Tag) + (1 | Family:Tag),
+      data = new_data
+    )
 
 summary(m1)
 pp_check(m1, resp="degree")
 pp_check(m1, resp="betweenness")
 # these look like pretty poor models
-
-
-m2 <-
-  brm(
-    mvbind(degree, betweenness) ~ factor.order * scale(age) + scale(Chick.weight)*scale(age) +  (1 | Tag) , 
-    data = new_data
-  )
 
 
 summary(m2)
@@ -1228,7 +1224,6 @@ length(rownames(network))
 network.in <- network
 
 
-
 vec <- NULL #the vector is now empty but will be filled
 #for(i) means that I create a location called i that will contain the names of my initial network
 for(i in rownames(network.in)){
@@ -1242,9 +1237,7 @@ for(i in rownames(network.in)){
 length(vec)#187, as the length of the network
 length(na.omit(vec))#only 45 Chicks in the summer that have a minimum of 5 observations and that have a fledge order
 
-
 # SW: I have moved this outside of the function - best to have your clean data going into the function
-
 net <- network.in[-which(is.na(vec)), -which(is.na(vec))]
 length(rownames(net))
 vec1 <- na.omit(vec)
@@ -1276,16 +1269,26 @@ assort <- assortment.function(network.in=net, vec = as.vector(fledge.order))
 
 assort$p
 assort$r
+#SW: p=0.717
+#EZ: I have another p-value
 
 # this should plot the histogram and add the line
 hist(assort$vec.rand)
 abline(v=assort$r, col="red")
 # p is significant if either below 0.05 or above 0.95
 
+length(vec1)
+length(rownames(net)) #great they correspond, same length
+
+
+# SW: I'm saving the current workspace so I can just load it again next time without having to rerun everything
 save.image(file="R.image.RData")
 
 
+
 #Assortnet for each week
+
+
 
 
 
