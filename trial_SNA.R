@@ -3,6 +3,28 @@ fd<- read.table("fledgling_data.txt",header = TRUE, fill = T, sep = "\t")
 View(fd)
 str(fd)
 
+# SW: I'm adding a column where I scale the fledge order within nests, rather than across nests
+# i.e. fledge order/max fledge order -0.5
+# so out of a nest of three, the first would have 1/3-0.5=-0.16, the second 2/3-0.5=0.16, the third 3/3-0.5=0.5
+library(datawizard)
+fd$fledge.order.scaled.within <- fd$Fledge.order
+
+for(i in fd$Box){
+  
+  tags.box.chicks <- subset(fd, fd$Box==i & fd$Who=="Chick")
+  if(length(tags.box.chicks$Box)==1){
+    fd[as.numeric(rownames(tags.box.chicks)), "fledge.order.scaled.within"] <- NA
+  } else {
+    fd[as.numeric(rownames(tags.box.chicks)), "fledge.order.scaled.within"] <-   datawizard::normalize(tags.box.chicks$Fledge.order)
+  }
+}
+
+
+hist(fd$fledge.order.scaled.within)
+
+# all first fledgers now have a value of 0, all last fledgers a value of 1
+# I have excluded those where only one chick fledged
+
 #species_age
 sp_a<- read.table("species_age.txt",header = TRUE, fill = T, sep = "\t")
 View(sp_a)
@@ -857,7 +879,8 @@ hist(fd_withoutNA$scaled_FledgeOrder)
 fd_withoutNA$scaled_FledgeOrder2 <- datawizard::normalize(fd_withoutNA$Fledge.order, method = "range", range = c(0, 1))
 head(fd_withoutNA)
 
-
+# this is how the two scalings compare: on the x axis scaled across all nests, on the y axis only scaled within nests
+plot(fd_withoutNA$scaled_FledgeOrder2, fd_withoutNA$fledge.order.scaled.within)
 
 #make a new dataframe for the regressions
 # 2)SW: I would therefore suggest that you try to get your weekly values into analysable format: 
@@ -875,7 +898,7 @@ View(table_week)
 #step2 choose only some columns of fd_withoutNA
 library(dplyr)
 fd_new <- fd_withoutNA %>%
-  select(Tag, scaled_FledgeOrder2, Chick.weight, Fledged, Family)
+  select(Tag, scaled_FledgeOrder2, fledge.order.scaled.within, Chick.weight, Fledged, Family)
 class(fd_new)
 View(fd_new)
 duplicated(fd_new$Tag) #Tag is unique
@@ -947,6 +970,7 @@ head(new_data)
 str(new_data$Family)
 new_data$Family <- as.factor(new_data$Family)
 str(new_data$scaled_FledgeOrder2)
+str(new_data$fledge.order.scaled.within)
 str(new_data$Tag)
 str(new_data$degree)
 str(new_data$age)
@@ -1159,12 +1183,17 @@ vif(bf_glmer2)#no prob with multi-collinearity
 ##Try when last sibling versus all other instead of the first. 
 max(new_data$scaled_FledgeOrder2)#1
 
-# 1 are first fledglings, higher is others
+# SW: it occurs to me here that these are actually not all last siblings to fledge. Since we have scaled it across the largest clutch size, some last fledgers may have a different value than 1. 
+
+
+# 1 are first fledglings, higher is others 
+# SW: I've changed it to the newly generated fledge order that is scaled within each nest, so values of 1 are last fledgers
 library(dplyr)
 new_data <- new_data %>%
-  mutate(factor.order2 = ifelse(scaled_FledgeOrder2 == 1, "Last", "Other"))
+  mutate(factor.order2 = ifelse(fledge.order.scaled.within == 1, "Last", "Other"))
 View(new_data)
-which(new_data$factor.order2=="Last")#only 3 individuals, not enough to make an analysis.
+length(which(new_data$factor.order2=="Last"))
+# these are now 19 individuals
 
 
 
@@ -1180,24 +1209,15 @@ library(brms)
 
 m1 <-
   brm(
-    mvbind(degree, betweenness) ~ scaled_FledgeOrder2*scale.age + Chick.weight*scaled_FledgeOrder2 + Chick.weight*scale.age + (1|Tag) + (1|Family:Tag) , data=new_data
+    mvbind(degree, betweenness) ~ fledge.order.scaled.within*scale.age + Chick.weight*fledge.order.scaled.within + Chick.weight*scale.age + (1|Tag) + (1|Family:Tag) , data=new_data
   )
 
-m2 <-   brm(
-      mvbind(degree, betweenness) ~ scaled_FledgeOrder2 * scale.age + Chick.weight *
-        scaled_FledgeOrder2 + Chick.weight * scale.age + (1 |Tag) + (1 | Family:Tag),
-      data = new_data
-    )
 
 summary(m1)
 pp_check(m1, resp="degree")
 pp_check(m1, resp="betweenness")
 # these look like pretty poor models
 
-
-summary(m2)
-pp_check(m2, resp="degree")
-pp_check(m2, resp="betweenness")
 
 
 #####Test for assortment in fledge order 
@@ -1207,86 +1227,102 @@ library("assortnet")
 
 #Take first the initial network, that that contains all the weeks
 library("asnipe")
+
 network <- get_network(gbi, data_format = "GBI",
                        association_index = "SRI")
 
 
-# we need a vector of length individuals in the network
-fake.fl.order <- seq(from=-1,to=1,length.out=187) #example --> then should be assortment.continuous
 
-fd$Fledge.order#Its discrete
-length(which(fd$Who=="Chick"& fd$Location =="Castle"& fd$Fledge.order>0))#113 individuals
+# SW: I here change it to the scaled fledge order wihin the nest
+fd$fledge.order.scaled.within#Its continous
+length(which(fd$Who=="Chick"& fd$Location =="Castle"& !is.na(fd$fledge.order.scaled.within)))#112 individuals
 length(rownames(network))
 
 
-# This extracts the fledge order for each individual in the network
-# vec then goes straight into the below function (as fledge.order) to calculate assortment
-network.in <- network
+# SW: I have compiled a function where you can submit a network and it automatically extracts the fledge order for those we have data for. It then runs the assortment function and returns the assortment p value, r rand, r, and the size of the network
 
 
-vec <- NULL #the vector is now empty but will be filled
-#for(i) means that I create a location called i that will contain the names of my initial network
-for(i in rownames(network.in)){
-  i.fledge.order <- unique(subset(fd$Fledge.order, fd$Tag==i)) #i.fledge.order becomes all the individuals that have a fledge.order for wich their Tag equals to i
-  if(length(i.fledge.order)==0){ #if i.fledge.order has no length, that means that there is no fledge.orde, therefore that means that we identify the adults that are not the parents of the chicks
-    i.fledge.order <- NA #These adults received then now a value of NA
+assortment.function <- function(network.in){
+  
+  vec <- NULL #the vector is now empty but will be filled with the fledge order
+  #for(i) means that I create a location called i that will contain the names of my initial network
+  for(i in rownames(network.in)){
+    i.fledge.order <- unique(subset(fd$fledge.order.scaled.within, fd$Tag==i)) #i.fledge.order becomes all the individuals that have a fledge.order for wich their Tag equals to i
+    if(length(i.fledge.order)==0){ #if i.fledge.order has no length, that means that there is no fledge.orde, therefore that means that we identify the adults that are not the parents of the chicks
+      i.fledge.order <- NA #These adults received then now a value of NA
+    }
+    vec[which(rownames(network.in)==i)] <- i.fledge.order #The empty vector will now contains the row of the network (the tags) that are equal to i, meaning the rows that are also found in the fd data. NB: these rownames (the Tags) have to be of same length and in the same order
   }
-  vec[which(rownames(network.in)==i)] <- i.fledge.order #The empty vector will now contains the row of the network (the tags) that are equal to i, meaning the rows that are also found in the fd data. NB: these rownames (the Tags) have to be of same length and in the same order
-}
-
-length(vec)#187, as the length of the network
-length(na.omit(vec))#only 45 Chicks in the summer that have a minimum of 5 observations and that have a fledge order
-
-# SW: I have moved this outside of the function - best to have your clean data going into the function
-net <- network.in[-which(is.na(vec)), -which(is.na(vec))]
-length(rownames(net))
-vec1 <- na.omit(vec)
-length(vec1)
-
-assortment.function <- function(network.in, vec){
-  #make a function that will take data from the network.in and the created vector (containing the fledge order)
+  
+  # we need to subset both the network and the vector with the fledge order to those we have data for:
+  network.in <- network.in[-which(is.na(vec)), -which(is.na(vec))]
+  
+  # remove the NAs from the fledge order vector
+  vec <- as.vector(na.omit(vec))
+  # vec now contains the fledge order that is scaled WITHIN each nest
+  
+  # here we run the actual assortment function on the subset network and its corresponding fledge order values
   vec.rand <- NULL #make an empty vector
-  assort <- assortment.discrete(graph=net, types = vec , weighted = TRUE)
+  assort <- assortment.discrete(graph=network.in, types = vec , weighted = TRUE)
   object <- NULL #make a new empty vector
   for(i in 1:1000){
     # we use node based permutation for i
     # i will take randomly Tags and permute it 1000 times
-    rand.phenotype <- sample(vec1)
-    r.rand <- assortment.discrete(graph = net, types = rand.phenotype, weighted = TRUE)$r
+    rand.phenotype <- sample(vec)
+    r.rand <- assortment.discrete(graph = network.in, types = rand.phenotype, weighted = TRUE)$r
     #this gives the r of the assortment, the observed r
     vec.rand[i] <- r.rand #now I have a vector called vec.rand that contains the r values of the assortment that are all obtained randomly by the permutations
   }
   # extract where the real r falls among the computed r (which corresponds to our p value)
   p <- length(which(vec.rand < assort$r))/1000 #compare the real r we got from our data to the one obtained by permutation to see whether the r obtained with our data is significant or not.
   #Because if we do a histogram we see that the distribution of the random r falls very far left from the observed r, we know that we have to do 1-p, hence the symbole <. If not the case, then symbole in the other way.
+  object$network <- network.in
   object$p <- p
   object$r <- assort$r
   object$vec.rand <- vec.rand
   return(object) #now when I run it, I ask RStudio to return to me the p and r saved in object. That becomes the output when I run the function
 }
 
-assort <- assortment.function(network.in=net, vec = as.vector(fledge.order))
+
+set.seed(5)
+assort <- assortment.function(network.in=network)
 
 assort$p
 assort$r
-#SW: p=0.717
+#SW: p=0.158
 #EZ: I have another p-value
+# that is entirely possible - since we are running 1000 randomizations,the p value could be quite different. We can overcome this by setting set.seed before we run the function, then it will always take the same set of 'random' values
 
 # this should plot the histogram and add the line
 hist(assort$vec.rand)
 abline(v=assort$r, col="red")
 # p is significant if either below 0.05 or above 0.95
 
-length(vec1)
-length(rownames(net)) #great they correspond, same length
+length(rownames(assort$network)) # the network now contains 45 individuals that have data on fledge order
 
+#Assortnet for each week
+# SW: in theory you should be able to just run the function on each week separately now:
+
+# e.g.
+assort.week5 <- assortment.function(network.in=network_week5)
+
+dim(assort.week5$network)
+# only 6 individuals - probably too few to run any analysis
+
+
+assort.week6 <- assortment.function(network.in=network_week6)
+
+dim(assort.week6$network)
+assort.week6$p
+assort.week6$r
+hist(assort.week6$vec.rand)
+abline(v=assort.week6$r, col="red")
+
+# etc.
 
 # SW: I'm saving the current workspace so I can just load it again next time without having to rerun everything
 save.image(file="R.image.RData")
-
-
-
-#Assortnet for each week
+load("R.image.RData")
 
 
 
