@@ -3,27 +3,6 @@ fd<- read.table("fledgling_data.txt",header = TRUE, fill = T, sep = "\t")
 View(fd)
 str(fd)
 
-# SW: I'm adding a column where I scale the fledge order within nests, rather than across nests
-# i.e. fledge order/max fledge order -0.5
-# so out of a nest of three, the first would have 1/3-0.5=-0.16, the second 2/3-0.5=0.16, the third 3/3-0.5=0.5
-library(datawizard)
-fd$fledge.order.scaled.within <- fd$Fledge.order
-
-for(i in fd$Box){
-  
-  tags.box.chicks <- subset(fd, fd$Box==i & fd$Who=="Chick")
-  if(length(tags.box.chicks$Box)==1){
-    fd[as.numeric(rownames(tags.box.chicks)), "fledge.order.scaled.within"] <- NA
-  } else {
-    fd[as.numeric(rownames(tags.box.chicks)), "fledge.order.scaled.within"] <-   datawizard::normalize(tags.box.chicks$Fledge.order)
-  }
-}
-
-
-hist(fd$fledge.order.scaled.within)
-
-# all first fledgers now have a value of 0, all last fledgers a value of 1
-# I have excluded those where only one chick fledged
 
 #species_age
 sp_a<- read.table("species_age.txt",header = TRUE, fill = T, sep = "\t")
@@ -868,19 +847,44 @@ levels(data_cc_no_NA$Fledge.order)
 ## SW: 1) I would recommend treating your fledge order variable as a scaled variable in all your models (-> value between -0.5-0.5), since the factors of 1-7 are not biologically meaningful.
 
 #Scale Fledge.order 
-#install.packages("scales")
-library(scales)
 library(datawizard)
-fd_withoutNA <- na.omit(fd)
-fd_withoutNA$Fledge.order <- as.numeric(fd_withoutNA$Fledge.order)
-fd_withoutNA$scaled_FledgeOrder <- rescale(fd_withoutNA$Fledge.order, to= c(-0.5, 0.5))
-hist(fd_withoutNA$scaled_FledgeOrder)
 
-fd_withoutNA$scaled_FledgeOrder2 <- datawizard::normalize(fd_withoutNA$Fledge.order, method = "range", range = c(0, 1))
-head(fd_withoutNA)
+# SW: I'm adding a column where I scale the fledge order within nests, rather than across nests
+# i.e. fledge order/max fledge order -0.5
+# so out of a nest of three, the first would have 1/3-0.5=-0.16, the second 2/3-0.5=0.16, the third 3/3-0.5=0.5
+
+fd$fledge.order.scaled.within <- fd$Fledge.order
+
+for(i in fd$Box){
+  
+  tags.box.chicks <- subset(fd, fd$Box==i & fd$Who=="Chick")
+  if(length(tags.box.chicks$Box)==1){
+    fd[as.numeric(rownames(tags.box.chicks)), "fledge.order.scaled.within"] <- NA
+  } else {
+    fd[as.numeric(rownames(tags.box.chicks)), "fledge.order.scaled.within"] <-   datawizard::normalize(tags.box.chicks$Fledge.order)
+  }
+}
+
+
+hist(fd$fledge.order.scaled.within)
+
 
 # this is how the two scalings compare: on the x axis scaled across all nests, on the y axis only scaled within nests
-plot(fd_withoutNA$scaled_FledgeOrder2, fd_withoutNA$fledge.order.scaled.within)
+library(datawizard)
+fd$scaled_FledgeOrder2 <- datawizard::normalize(fd$Fledge.order, method = "range", range = c(0, 1))
+View(fd)
+fd_withoutNA <- na.omit(fd) #keeps only the observations with fledge.order > 2
+View(fd_withoutNA)
+plot(fd_withoutNA$scaled_FledgeOrder2, fd_withoutNA_2$fledge.order.scaled.within)
+
+# all first fledgers now have a value of 0, all last fledgers a value of 1 (thx to datawizard::normalize)
+# I have excluded those where only one chick fledged with if(length(tags.box.chicks$Box)==1){
+#  fd[as.numeric(rownames(tags.box.chicks)), "fledge.order.scaled.within"] <- NA
+
+
+
+
+
 
 #make a new dataframe for the regressions
 # 2)SW: I would therefore suggest that you try to get your weekly values into analysable format: 
@@ -914,6 +918,7 @@ head(new_data)
 library(lubridate)
 #I want Fledge into a date, counting since the 01/04/2020
 str(new_data$Fledged)#has to be numeric for the following code
+new_data$Fledged <- as.numeric
 reference_date <- as.Date("2020-04-01")
 new_data$Fledge.date <-reference_date + days(new_data$Fledged)
 
@@ -1195,6 +1200,58 @@ View(new_data)
 length(which(new_data$factor.order2=="Last"))
 # these are now 19 individuals
 
+#degree
+new_data$scale.age <- scale(new_data$age)
+d_within <- glmer(degree ~ factor.order2*scale.age + Chick.weight*factor.order2 + Chick.weight*scale.age  + (1|Tag)+ (1|Family:Tag) , data=new_data, family=gaussian)
+summary(d_within)
+library(car)
+Anova(d_within)
+library(report)
+report(d_within)
+#Leave out the interactions
+d_within1 <- glmer(degree ~ factor.order2 + scale.age + Chick.weight  + (1|Tag)+ (1|Family:Tag) , data=new_data, family=gaussian)
+#fail to converge --> leave out one random factor
+d_within2 <- glmer(degree ~ factor.order2 + scale.age + Chick.weight  + (1|Tag), data=new_data, family=gaussian)
+summary(d_within2)
+vif(d_within2)#no prob
+Anova(d_within2)
+report(d_within2)#nothing is significant
+
+
+
+#betweenness
+b_within0 <- lmer(betweenness ~ factor.order2*scale.age + Chick.weight*factor.order2 + Chick.weight*scale.age  + (1|Tag)+ (1|Family:Tag), data=new_data)
+qqnorm(resid(b_within0))
+qqline(resid(b_within0))
+shapiro.test(resid(b_within0))#not normal --> mixed models are robust against non normality (https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/2041-210X.13434)
+drop1(b_within0, test="F")
+#not normal --> use rather glmer because at least these models are stable against assumption deviations
+
+b_within <- glmer(betweenness ~ factor.order2*scale.age + Chick.weight*factor.order2 + Chick.weight*scale.age  + (1|Tag)+ (1|Family:Tag), data=new_data, family=gaussian)
+summary(b_within)
+Anova(b_within)
+report(b_within)#factor.order2:scale.age is significant
+vif(b_within)#problems of multicollinearity
+#Chick.weight*factor.order2 is almost significant (tendency) with p-val =0.08804 
+#leave out the unsignificant interactions
+
+b_within1 <- glmer(betweenness ~ factor.order2*scale.age + Chick.weight + (1|Tag)+ (1|Family:Tag) , data=new_data, family=gaussian)
+#Model failed to converge, hence I leave out the random factor
+
+b_within2 <- glmer(betweenness ~ factor.order2*scale.age + Chick.weight + (1|Tag) , data=new_data, family=gaussian)
+summary(b_within2)
+Anova(b_within2)
+report(b_within2)#the interaction scale.age:fledge.order2 is no longer significant
+vif(b_within2)
+#scale.age has a high VIF (9.963451)
+#Leave out the interaction as it is no longer significant
+
+b_within3 <- glmer(betweenness ~ factor.order2 + scale.age + Chick.weight + (1|Tag) , data=new_data, family=gaussian)
+summary(b_within3)
+Anova(b_within3)
+report(b_within3)#the interaction scale.age:fledge.order2 is no longer significant
+vif(b_within3)#no longer problems with multi-collinearity
+
 
 
 # SW: you don't have to use brms - this is just the package I am most familiar with. 
@@ -1202,7 +1259,6 @@ length(which(new_data$factor.order2=="Last"))
 
 #SW: to test degree and betweenness at the same time: use package brms
 install.packages("brms")
-##EZ: I have problems with brms --> still unsolved
 
 # SW: I've been trying a couple of things here - the models seem to fit pretty poorly atm. 
 library(brms)
@@ -1218,7 +1274,7 @@ pp_check(m1, resp="degree")
 pp_check(m1, resp="betweenness")
 # these look like pretty poor models
 
-
+plot(m1)
 
 #####Test for assortment in fledge order 
 install.packages("assortnet")#issues when installing -> now resolved
@@ -1236,18 +1292,18 @@ network <- get_network(gbi, data_format = "GBI",
 # SW: I here change it to the scaled fledge order wihin the nest
 fd$fledge.order.scaled.within#Its continous
 length(which(fd$Who=="Chick"& fd$Location =="Castle"& !is.na(fd$fledge.order.scaled.within)))#112 individuals
-length(rownames(network))
+length(rownames(network))#187
 
 
 # SW: I have compiled a function where you can submit a network and it automatically extracts the fledge order for those we have data for. It then runs the assortment function and returns the assortment p value, r rand, r, and the size of the network
-
+network.in <- network
 
 assortment.function <- function(network.in){
   
   vec <- NULL #the vector is now empty but will be filled with the fledge order
   #for(i) means that I create a location called i that will contain the names of my initial network
   for(i in rownames(network.in)){
-    i.fledge.order <- unique(subset(fd$fledge.order.scaled.within, fd$Tag==i)) #i.fledge.order becomes all the individuals that have a fledge.order for wich their Tag equals to i
+    i.fledge.order <- unique(subset(fd$fledge.order.scaled.within, fd$Tag==i)) #i.fledge.order becomes all the individuals that have a fledge.order for which their Tag equals to i
     if(length(i.fledge.order)==0){ #if i.fledge.order has no length, that means that there is no fledge.orde, therefore that means that we identify the adults that are not the parents of the chicks
       i.fledge.order <- NA #These adults received then now a value of NA
     }
@@ -1302,6 +1358,7 @@ length(rownames(assort$network)) # the network now contains 45 individuals that 
 
 #Assortnet for each week
 # SW: in theory you should be able to just run the function on each week separately now:
+#EZ: I changed the symbole (< >) for the p value calculation in the function depending on the histogram of vec.rand obtained for each week
 
 # e.g.
 assort.week5 <- assortment.function(network.in=network_week5)
@@ -1312,13 +1369,78 @@ dim(assort.week5$network)
 
 assort.week6 <- assortment.function(network.in=network_week6)
 
-dim(assort.week6$network)
+dim(assort.week6$network)#17
 assort.week6$p
 assort.week6$r
 hist(assort.week6$vec.rand)
 abline(v=assort.week6$r, col="red")
 
-# etc.
+assort.week7 <- assortment.function(network.in=network_week7)
+
+dim(assort.week7$network)#13
+assort.week7$p #0.075
+assort.week7$r
+hist(assort.week7$vec.rand)
+abline(v=assort.week7$r, col="red")
+
+assort.week8 <- assortment.function(network.in=network_week8)
+
+dim(assort.week8$network)#16
+assort.week8$p #0.45
+assort.week8$r
+hist(assort.week8$vec.rand)
+abline(v=assort.week8$r, col="red")
+
+assort.week9 <- assortment.function(network.in=network_week9)
+
+dim(assort.week9$network)#16
+assort.week9$p #0.445
+assort.week9$r
+hist(assort.week9$vec.rand)
+abline(v=assort.week9$r, col="red")
+
+assort.week10 <- assortment.function(network.in=network_week10)
+
+dim(assort.week10$network)#18
+assort.week10$p #0.191
+assort.week10$r
+hist(assort.week10$vec.rand)
+abline(v=assort.week10$r, col="red")
+
+assort.week11 <- assortment.function(network.in=network_week11)
+
+dim(assort.week11$network)#13
+assort.week11$p #0.271
+assort.week11$r
+hist(assort.week11$vec.rand)
+abline(v=assort.week11$r, col="red")
+
+assort.week12 <- assortment.function(network.in=network_week12)
+
+dim(assort.week12$network)#23
+assort.week12$p #0.007 --> significant!!!
+assort.week12$r
+hist(assort.week12$vec.rand)
+abline(v=assort.week12$r, col="red")
+
+
+assort.week13 <- assortment.function(network.in=network_week13)
+
+dim(assort.week13$network)#14
+assort.week13$p #0.372 --> significant!!!
+assort.week13$r
+hist(assort.week13$vec.rand)
+abline(v=assort.week13$r, col="red")
+
+assort.week14 <- assortment.function(network.in=network_week14)
+
+dim(assort.week14$network)#16
+assort.week14$p #0.296 --> significant!!!
+assort.week14$r
+hist(assort.week14$vec.rand)
+abline(v=assort.week14$r, col="red")
+
+
 
 # SW: I'm saving the current workspace so I can just load it again next time without having to rerun everything
 save.image(file="R.image.RData")
