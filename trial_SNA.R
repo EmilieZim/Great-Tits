@@ -1252,6 +1252,20 @@ Anova(b_within3)
 report(b_within3)#the interaction scale.age:fledge.order2 is no longer significant
 vif(b_within3)#no longer problems with multi-collinearity
 
+##!! What if betweenness is a count?: https://link.springer.com/article/10.1007/s00265-017-2425-y
+#Poisson distribution
+hist(new_data$betweenness) ##Indeed, could be Poisson
+b_within0.0 <- glmer(betweenness ~ factor.order2*scale.age + Chick.weight*factor.order2 + Chick.weight*scale.age  + (1|Tag)+ (1|Family:Tag), data=new_data, family=poisson)
+b_within1.1 <- glmer(betweenness ~ factor.order2+ scale.age + Chick.weight +factor.order2:scale.age + Chick.weight:factor.order2 + Chick.weight:scale.age  + (1|Tag), data=new_data, family=poisson)
+summary(b_within0.0)
+library(car)
+Anova(b_within0.0)
+#Difficulties with these models
+
+#When using brms for this, R tells me to use only integer response variables. --> If I transform betweenness in integer values I will lose information. Not such a good idea
+# Here They normalize betweenness https://conbio.onlinelibrary.wiley.com/doi/full/10.1111/cobi.13383
+#Here they use linear mixed models (seems gaussian, not poisson): https://academic.oup.com/jeb/article/33/11/1634/7326429
+
 
 
 # SW: you don't have to use brms - this is just the package I am most familiar with. 
@@ -1448,71 +1462,125 @@ load("R.image.RData")
 
 
 
+####Repeatability of the network position
+library(rptR)
+head(new_data)
+
+#degree
+r1 <- rpt(degree ~ (1|Tag), grname = "Tag", data = new_data, datatype = "Gaussian", CI=0.95,
+    nboot = 1000, npermut = 0)
+#R  = 0.287
+#SE = 0.091
+#CI = [0.095, 0.449]
+#P  = 0.000163 [LRT] --> significant
+#NA [Permutation]
+
+summary(r1)
+plot(r1)
+
+#Other method
+#Here: https://link.springer.com/article/10.1007/s00265-017-2425-y
+#Uses lmer into rptR package. 
+#After does 1000 iterations --> don't know yet how to do that (see below)
+r2 <-rptGaussian(degree ~ factor.order2 + scale.age + Chick.weight  + (1|Tag), grname= "Tag", data= new_data, CI = 0.95, nboot = 1000, npermut=0)
+#Repeatability for Tag
+#R  = 0.302
+#SE = 0.095
+#CI = [0.118, 0.486]
+#P  = 0.000231 [LRT]
+#NA [Permutation]
+summary(r2)
 
 
-####multivariate analysis
+d_within2 <- glmer(degree ~ factor.order2 + scale.age + Chick.weight + (1|Tag) , data=new_data, family=gaussian)
+summary(d_within2)
 
-#SW: I do not recommend a PCA for this. The PCA reduces your two measures (degree and betweenness) to combined factor. But what you would like to test is whether fledge order is a predictor of one, the other, or both. That is where multivariate statistics comes in: 
-# From wikipedia: Multivariate statistics is a subdivision of statistics encompassing the simultaneous observation and analysis of more than one outcome variable, i.e., multivariate random variables. 
+#Repeatability= (between-group variance)/(between-group variance) + (Within group variance)
+#So, from the glmer output: Variance of Tag/(Variange of Tage + Variance of the residuals)
+75.07/ (75.07+173.41) #0.3021169 --> exactly what gives rptGaussian function, seems a rounding of of rpt()
 
-#EZ: But I particularly did it to extract the pca scores for each ind and link them to their fledge order
-library(dplyr)
-PCA <- new_data%>%
-  group_by(Tag, degree, betweenness) %>%
-  tally()
-PCA
 
-attach(PCA)
-y <- cbind(degree, betweenness)
-cor(y)
+#betweenness
+rpt(betweenness ~ (1|Tag), grname = "Tag", data = new_data, datatype = "Gaussian", CI=0.95,
+    nboot = 1000, npermut = 0)
+#R  = 0.093
+#SE = 0.069
+#CI = [0, 0.255]
+#P  = 0.0699 [LRT] --> significant
+#NA [Permutation]
+#Singular Fit problems
 
-pc1 <- princomp(y, cor=T)
-loadings(pc1)
-summary(pc1)
-#Comp1 (1.1231863), Comp2 (0.8593326)
+rptGaussian(betweenness ~ factor.order2 + scale.age + Chick.weight  + (1|Tag), grname= "Tag", data= new_data, CI = 0.95, nboot = 1000, npermut=0)
+#singular boundary fit problem --> probably overfitting --> random part too complex which I found wierd
+#Repeatability for Tag
+#R  = 0.098
+#SE = 0.074
+#CI = [0, 0.271]
+#P  = 0.109 [LRT]
+#NA [Permutation]
 
-biplot(pc1, pc.biplot=T)
-library(ggplot2)
-library(factoextra)
+#Other method: by using the ICC (intraclass correlation coefficient)
+#https://www.sciencedirect.com/science/article/pii/S0003347209000189?casa_token=soMn6gw8gf0AAAAA:Go4hPYSJPGOJmL8aCkBNgWuTRI0QpEQu6GQI2CAieBtgZm7XKTBT_c2LHqCtoQcAMYwpC64wbcwU
+#https://academic.oup.com/beheco/article/28/1/85/2453500
+install.packages(irr)
+library("irr") #function icc()
+#needs a dataframe whith response variable for each week --> merge of all the centrality tables
+#one for betweenness, one for degree
+## dataframe such as: Tag    betweenness$week1   betweenness$week2    betweenness$week3 etc
+#Even so, this can't be done as the lengths of betweenness and degree for each chicks are different. Not the same lengths for each week
 
-pca <- prcomp(~degree + betweenness, scale = TRUE, data=PCA)
 
-library(factoextra)
-fviz_pca_var(pca, col.var="darkblue", title= "PCA-Aggression")
-
-##Scores of the PCA of each individual and see if it is correlated to fledge order
-
-y1 <- as.data.frame(new_data) %>% select(Tag, degree, betweenness, Week, scaled_FledgeOrder2)
-y1
-y1$TagWeek <- paste(y1$Tag, y1$Week, sep = "_")
-rownames(y1) <- y1$TagWeek
-y1_2 <- y1 %>% select(-c(Tag, TagWeek, Week, scaled_FledgeOrder2))
-pca1 <- princomp(y1_2, cor=T)
-score<- pca1$scores[,1]
-
-#by setting rownames we now know which scores belong to which individuals
-#I need the rownames again so that I can match the Fledge order with the PCA scores
-PCA_Fledge <- data.frame(PCA_Score = score) 
-PCA_Fledge$TagWeek <- rownames(PCA_Fledge)
-library(tidyr)
-PCA_Fledge <- PCA_Fledge %>% separate(col = TagWeek, sep = "_", into = c("Tag", "Week")) #Splits the merged name into two again
-y1$Week <- as.character(y1$Week)
-PCA_Fledge <- left_join(PCA_Fledge, select(y1, Tag, scaled_FledgeOrder2, Week))
-
-#correlation:
-cor.test(PCA_Fledge$PCA_Score, PCA_Fledge$scaled_FledgeOrder2)#not significant
-#not correlated
-#Visualize:
-library(ggpubr)
-ggscatter(PCA_Fledge, x = "PCA_Score", y = "scaled_FledgeOrder2", 
-          add = "reg.line", conf.int = TRUE, 
-          cor.coef = TRUE, cor.method = "pearson",
-          xlab = "PCA scores", ylab = "Fledge order")
+#Here propose to do this:https://academic.oup.com/jeb/article/33/11/1634/7326429
+#We consider the observed repeatabilities as statistically significant when their 95% credible intervals (hereafter 95CI) did not include the mean of the respective permuted repeatabilities.
+#! had to do permutations in order to test for statistical significance
+#"1000 iterations of the observed data for every model"
+#See below
 
 
 
+#Try the method with the 1000 permutations 
+#First resample 1000 times (iterations, like for i=1000 in a function maybe) each weekly network
+#From these randomized weekly networks, calculate new degree and betweenness
+#Then, compare the observed repeatability (R) with the ones from the randomized networks
+#This will tell whether it is significant or not
+#Following this tutorial: https://dshizuka.github.io/networkanalysis/example_assortment_in_wytham.html
+#However, not the most appropriate tutorial for my code
 
+#All weeks together
+library("asnipe")
+network <- get_network(gbi, data_format = "GBI",
+                       association_index = "SRI")
 
+#making graph with i_graph 
+library("igraph")
+net <- graph_from_adjacency_matrix(network,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+
+#resample for each week and then recalculate degree and betweenness for each week
+s <- sample(V(net), length(V(net)), replace=F) 
+
+#For each week seperately:
+#starting from week4 as chicks only started to appear then
+library(igraph)
+library(asnipe)
+network_week4 <- get_network(gbi4.sub, data_format="GBI",
+                             association_index="SRI")
+
+net4 <- graph_from_adjacency_matrix(network_week4,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+s4 <- sample(V(net4), replace=F) #when doing so I lose the pairs that were made
+s4_deg <- degree(s4)#doens't work
+
+t=1000
+r.pre.permutation <- vector(length=t)
+for (i in 1:t){
+  s <- sample(V(net4), length(V(net4)),replace=F) 
+  r.pre.permutation[i]=degree(s) 
+}
+
+#This is not working yet. --> Problem at the resampling phase.
+
+#repeatability
+#Compare the newly created R, obtained from the 1000 permutations for each week, with the observed R
+#This should show whether it is repeatable or not.
 
 
 
