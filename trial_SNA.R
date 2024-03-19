@@ -1490,7 +1490,7 @@ r2 <-rptGaussian(degree ~ factor.order2 + scale.age + Chick.weight  + (1|Tag), g
 #P  = 0.000231 [LRT]
 #NA [Permutation]
 summary(r2)
-
+r2$R
 
 d_within2 <- glmer(degree ~ factor.order2 + scale.age + Chick.weight + (1|Tag) , data=new_data, family=gaussian)
 summary(d_within2)
@@ -1562,6 +1562,7 @@ s <- sample(V(net), length(V(net)), replace=F)
 #starting from week4 as chicks only started to appear then
 library(igraph)
 library(asnipe)
+library(rptR)
 network_week4 <- get_network(gbi4.sub, data_format="GBI",
                              association_index="SRI")
 
@@ -1569,20 +1570,181 @@ net4 <- graph_from_adjacency_matrix(network_week4,mode= c("undirected"), diag=FA
 s4 <- sample(V(net4), replace=F) #when doing so I lose the pairs that were made
 s4_deg <- degree(s4)#doens't work
 
+np <- network_permutation(gbi4.sub)#???https://cran.r-project.org/web/packages/asnipe/asnipe.pdf  and https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/2041-210X.12121
+#this function already makes a 1000 permutations, by default
+#Too heavy for my computer :/ 
+
+#attempt1
 t=1000
-r.pre.permutation <- vector(length=t)
+d.permutation4 <- vector(length=t)
 for (i in 1:t){
-  s <- sample(V(net4), length(V(net4)),replace=F) 
-  r.pre.permutation[i]=degree(s) 
+  s4 <- network_permutation(gbi4.sub)
+  nets4 <- graph_from_adjacency_matrix(s4,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+  d.permutation4[i]=degree(nets4)
 }
 
-#This is not working yet. --> Problem at the resampling phase.
+d.permutation4$degree
+#do this for every week
+#calculate repeatability of these randomized degrees
+#Compare it then with the actual repeatability value
 
-#repeatability
-#Compare the newly created R, obtained from the 1000 permutations for each week, with the observed R
+#attempt2
+d.permutation <- function (gbiX.sub, new_data) {
+  r.rand <- NULL
+    for(i in 1:1000){
+    s <- network_permutation(gbiX.sub) #this randomizes the nodes of the network
+    net.rand <- graph_from_adjacency_matrix(s,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+    degree.rand <- degree(net.rand)
+    r.rand[i] <-rptGaussian(degree.rand ~ factor.order2 + scale.age + Chick.weight  + (1|Tag), grname= "Tag", data= new_data, CI = 0.95, nboot = 1000, npermut=0)$R
+    }
+  
+}
+
+#for week4
+r.week4 <- d.permutation(network_weekX=network_week4, gbiX.sub = gbi4.sub)
+r.rand_week4 <- r.week4$r.rand
+#etc
+#This approach doesn't make sens because it calculates repeatability only week per week,
+#  while repeatability should be calculated across all weeks.
+#This is not right
+
+
+#attempt3
+d.permutation4 <- function (network_weekX) {
+  t <- NULL
+  netX <- graph_from_adjacency_matrix(network_weekX,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+  degree.obs <- degree(netX)
+  for(i in 1:1000){
+    s <- network_permutation(gbiX.sub)
+    net.rand <- graph_from_adjacency_matrix(s,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+    deg.rand <- degree(netX.rand)
+    t[i] <- deg.rand}
+}
+
+#for week4
+deg.week4 <- assortment.function(network_weekX=network_week4, gbiX.sub = gbi4.sub)
+deg.rand_week4 <- deg.week4$t
+
+#for week5
+#etc
+
+#Make table to combine all these randomized degrees
+#Then calculate the new repeatability with the newly randomized degrees
+#Then compare the new repeatability with the observed repeatability 
+#Seems a bit too elaborate, maybe this can be done more rapidly with a beter function
+
+
+
+
+### attempt 4: Maybe the best but still not so sure
+#Following: https://link.springer.com/article/10.1007/s00265-017-2425-y
+#Compare the newly created R, obtained from the 1000 permutations for each weekly network, with the observed R
 #This should show whether it is repeatable or not.
 
 
+#1. permutation of each weekly network
+s <- network_permutation(gbiX.sub)
+#2. extract the degree
+net.rand <- graph_from_adjacency_matrix(s,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+degree.rand <- degree(net.rand)
+#3. Do this for each week
+#4. Calculate repeatability of the random degrees of all these weeks combined
+#5.Repeat this a thousand times
+#6.Then compare it to the observed r.
+
+d.permutation <- function (gbi4.sub, gbi5.sub ,gbi6.sub,gbi7.sub,gbi8.sub, gbi9.sub, gbi10.sub,
+                           gbi11.sub, gbi12.sub, gbi13.sub, gbi14.sub, new_data) {
+  r.rand <- NULL
+  r.obs <-rptGaussian(degree ~ factor.order2 + scale.age + Chick.weight  + (1|Tag), grname= "Tag", data= new_data, CI = 0.95, nboot = 1000, npermut=0)$R
+  
+  for(i in 1:1000){
+    #permutation of each weekly network
+    s4 <- network_permutation(gbi4.sub) #this randomizes the nodes of the network
+    #calculate the degree of the randomized weekly network
+    net.rand4 <- graph_from_adjacency_matrix(s4,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+    degree.rand4 <- degree(net.rand4)
+    s5 <- network_permutation(gbi5.sub) #this randomizes the nodes of the network
+    net.rand5 <- graph_from_adjacency_matrix(s5,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+    degree.rand5 <- degree(net.rand5)
+    s6 <- network_permutation(gbi6.sub) #this randomizes the nodes of the network
+    net.rand6 <- graph_from_adjacency_matrix(s6,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+    degree.rand6 <- degree(net.rand6)
+    s7 <- network_permutation(gbi7.sub) #this randomizes the nodes of the network
+    net.rand7 <- graph_from_adjacency_matrix(s7,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+    degree.rand7 <- degree(net.rand7)
+    s8 <- network_permutation(gbi8.sub) #this randomizes the nodes of the network
+    net.rand8 <- graph_from_adjacency_matrix(s8,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+    degree.rand8 <- degree(net.rand8)
+    s9 <- network_permutation(gbi9.sub) #this randomizes the nodes of the network
+    net.rand9 <- graph_from_adjacency_matrix(s9,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+    degree.rand9 <- degree(net.rand9)
+    s10 <- network_permutation(gbi10.sub) #this randomizes the nodes of the network
+    net.rand10 <- graph_from_adjacency_matrix(s10,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+    degree.rand10 <- degree(net.rand10)
+    s11 <- network_permutation(gbi11.sub) #this randomizes the nodes of the network
+    net.rand11 <- graph_from_adjacency_matrix(s11,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+    degree.rand11 <- degree(net.rand11)
+    s12 <- network_permutation(gbi12.sub) #this randomizes the nodes of the network
+    net.rand12 <- graph_from_adjacency_matrix(s12,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+    degree.rand12 <- degree(net.rand12)
+    s13 <- network_permutation(gbi13.sub) #this randomizes the nodes of the network
+    net.rand13 <- graph_from_adjacency_matrix(s13,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+    degree.rand13 <- degree(net.rand13)
+    s14 <- network_permutation(gbi14.sub) #this randomizes the nodes of the network
+    net.rand14 <- graph_from_adjacency_matrix(s14,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+    degree.rand14 <- degree(net.rand14)
+    
+    #keep the Tags for each week 
+    Tag <- V(net.rand4)$name
+    degree_table4 <- data.frame(Tag = Tag, degree = degree.rand4)
+    Tag <- V(net.rand5)$name
+    degree_table5 <- data.frame(Tag = Tag, degree = degree.rand5)
+    Tag <- V(net.rand6)$name
+    degree_table6 <- data.frame(Tag = Tag, degree = degree.rand6)
+    Tag <- V(net.rand7)$name
+    degree_table7 <- data.frame(Tag = Tag, degree = degree.rand7)
+    Tag <- V(net.rand8)$name
+    degree_table8 <- data.frame(Tag = Tag, degree = degree.rand8)
+    Tag <- V(net.rand9)$name
+    degree_table9 <- data.frame(Tag = Tag, degree = degree.rand9)
+    Tag <- V(net.rand10)$name
+    degree_table10 <- data.frame(Tag = Tag, degree = degree.rand10)
+    Tag <- V(net.rand11)$name
+    degree_table11 <- data.frame(Tag = Tag, degree = degree.rand11)
+    Tag <- V(net.rand12)$name
+    degree_table12 <- data.frame(Tag = Tag, degree = degree.rand12)
+    Tag <- V(net.rand13)$name
+    degree_table13 <- data.frame(Tag = Tag, degree = degree.rand13)
+    Tag <- V(net.rand14)$name
+    degree_table14 <- data.frame(Tag = Tag, degree = degree.rand14)
+    
+  
+    degree_list <- list(degree.table4, degree.table5, degree.table6, degree.table7, degree.table8, degree.table9,
+                        degree.table0, degree.table11, degree.table12, degree.table13, degree.table14)
+    
+    #merge all data frames in list
+    library(dplyr)
+    degree.rand <- degree_list %>% reduce(full_join, by='Tag')
+    
+    #of the newly created degrees, calculate the repeatability
+    r.rand[i] <-rptGaussian(degree.rand ~ factor.order2 + scale.age + Chick.weight  + (1|Tag), grname= "Tag", data= new_data, CI = 0.95, nboot = 1000, npermut=0)$R
+  }
+  p <- length(which(r.rand < r.obs))/1000
+}
+
+d.permutation$p
+hist(d.permutation$r.rand)
+abline(v=d.permutation$r.obs, col="red")
+
+#Then do the same for betweenness
+
+#Cannot run this as my computer is not powerful enough
+
+
+
+##Other method where they rank the individuals first before doing the noe-permutations
+#https://link.springer.com/article/10.1007/s00265-012-1428-y
+#https://academic.oup.com/beheco/article/28/2/429/2724497
 
 
 
