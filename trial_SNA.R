@@ -1437,6 +1437,8 @@ assort.week12$r
 hist(assort.week12$vec.rand)
 abline(v=assort.week12$r, col="red")
 
+# SW: I guess the significance could also just be a chance result - if we're doing multiple testing, we are bound to find a significant effect at some point. That's why people usually correct for multiple testing e.g. by Bonferroni corrections or such. Given there is no evidence for assortment in any of the other weeks, this may not be a real effect.
+
 
 assort.week13 <- assortment.function(network.in=network_week13)
 
@@ -1475,6 +1477,8 @@ r1 <- rpt(degree ~ (1|Tag), grname = "Tag", data = new_data, datatype = "Gaussia
 #P  = 0.000163 [LRT] --> significant
 #NA [Permutation]
 
+# SW: I noticed a warning about singularity in the model - this is probably something we'll have to deal with, although I'm not sure yet how. 
+
 summary(r1)
 plot(r1)
 
@@ -1509,6 +1513,8 @@ rpt(betweenness ~ (1|Tag), grname = "Tag", data = new_data, datatype = "Gaussian
 #P  = 0.0699 [LRT] --> significant
 #NA [Permutation]
 #Singular Fit problems
+
+# SW: does it make sense to include all of these predictors when we found they are not good predictors in our model above? Should we not just include the random effect?
 
 rptGaussian(betweenness ~ factor.order2 + scale.age + Chick.weight  + (1|Tag), grname= "Tag", data= new_data, CI = 0.95, nboot = 1000, npermut=0)
 #singular boundary fit problem --> probably overfitting --> random part too complex which I found wierd
@@ -1566,9 +1572,89 @@ library(rptR)
 network_week4 <- get_network(gbi4.sub, data_format="GBI",
                              association_index="SRI")
 
+# SW: I guess the sampling needs to happen here rather than after calling the igraph function:
+new_order <- sample(rownames(network_week4))
+rownames(network_week4) <- new_order
+colnames(network_week4) <- new_order
+
 net4 <- graph_from_adjacency_matrix(network_week4,mode= c("undirected"), diag=FALSE, weighted=TRUE)
-s4 <- sample(V(net4), replace=F) #when doing so I lose the pairs that were made
-s4_deg <- degree(s4)#doens't work
+#s4 <- sample(V(net4), replace=F) #when doing so I lose the pairs that were made
+s4_deg <- degree(net4)#doens't work
+
+# should work now. 
+
+# SW: I see you have tried different things down below. I think the above approach is actually very promising! I have taken what you have started and put it in a funciton
+
+
+permute.networks <- function(gbi, week){
+  
+  network_week <- get_network(gbi, data_format="GBI",
+                               association_index="SRI")
+  
+  new_order <- sample(rownames(network_week))
+  rownames(network_week) <- new_order
+  colnames(network_week) <- new_order
+  
+  net <- graph_from_adjacency_matrix(network_week,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+  perm_deg <- degree(net)
+  perm_betw <- betweenness(net)
+  
+  perm <- as.data.frame(as.matrix(cbind( week, perm_deg, perm_betw)))
+  perm$Tag <- rownames(perm)
+  rownames(perm) <- NULL
+  return(perm)
+}
+
+
+# as an example, here it runs for just week 4:
+perm4 <- permute.networks(gbi=gbi4.sub, week=4)
+head(perm4)
+
+
+# now we want to run this for all weeks and 1000 times - I try this in a loop here:
+
+# this object is where we will save the output (1000 different data frames that contain data on the randomized networks)
+# I am only running it on week 4 and 5, but you can add all of the others equivalently
+perm_object <- NULL
+
+for(i in 1:1000){
+
+  perm4 <- permute.networks(gbi=gbi4.sub, week=4)
+  perm5 <- permute.networks(gbi=gbi5.sub, week=5)
+  # complete this list of weekly networks
+  
+  perm_combined <- rbind(perm4,
+                         perm5) # also complete the list here
+  
+  # we save it in a list
+  perm_object[[i]] <- perm_combined
+  
+}
+
+# our perm_object contains 1000 different data frames
+# data frame 1:
+perm_object[[1]]
+# data frame 2:
+perm_object[[2]]
+# etc.
+
+
+# Now you should be able to run the repeatability function on each of those object slots:
+# see if you can figure it out and how to store the repeatability output for each of the data frames
+
+for(i in 1:1000){
+  
+  perm_object[[i]] # here is a hint on how you can get the correct data frame
+  
+  
+  
+}
+
+
+### SW: this is how far I've looked at things properly
+
+
+
 
 np <- network_permutation(gbi4.sub)#???https://cran.r-project.org/web/packages/asnipe/asnipe.pdf  and https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/2041-210X.12121
 #this function already makes a 1000 permutations, by default
@@ -1583,7 +1669,9 @@ for (i in 1:t){
   d.permutation4[i]=degree(nets4)
 }
 
-d.permutation4$degree
+
+
+d.permutation4
 #do this for every week
 #calculate repeatability of these randomized degrees
 #Compare it then with the actual repeatability value
