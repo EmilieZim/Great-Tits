@@ -1742,7 +1742,7 @@ abline(v=d.permutation$r.obs, col="red")
 
 
 
-##Other method where they rank the individuals first before doing the noe-permutations
+##Other method where they rank the individuals first before doing the node-permutations
 #https://link.springer.com/article/10.1007/s00265-012-1428-y
 #https://academic.oup.com/beheco/article/28/2/429/2724497
 
