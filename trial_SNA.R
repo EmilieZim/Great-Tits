@@ -1486,26 +1486,26 @@ plot(r1)
 #Here: https://link.springer.com/article/10.1007/s00265-017-2425-y
 #Uses lmer into rptR package. 
 #After does 1000 iterations --> don't know yet how to do that (see below)
-r2 <-rptGaussian(degree ~ factor.order2 + scale.age + Chick.weight  + (1|Tag), grname= "Tag", data= new_data, CI = 0.95, nboot = 1000, npermut=0)
+r2 <-rptGaussian(degree ~ (1|Tag), grname= "Tag", data= new_data, CI = 0.95, nboot = 1000, npermut=0)
 #Repeatability for Tag
-#R  = 0.302
-#SE = 0.095
-#CI = [0.118, 0.486]
-#P  = 0.000231 [LRT]
-#NA [Permutation]
+#R  = 0.287
+#SE = 0.0915
+#P  = 0.000163
 summary(r2)
 r2$R
 
-d_within2 <- glmer(degree ~ factor.order2 + scale.age + Chick.weight + (1|Tag) , data=new_data, family=gaussian)
+library(lme4)
+library(lmerTest)
+d_within2 <- glmer(degree ~ (1|Tag) , data=new_data, family=gaussian)
 summary(d_within2)
 
 #Repeatability= (between-group variance)/(between-group variance) + (Within group variance)
 #So, from the glmer output: Variance of Tag/(Variange of Tage + Variance of the residuals)
-75.07/ (75.07+173.41) #0.3021169 --> exactly what gives rptGaussian function, seems a rounding of of rpt()
+69.41/ (69.41+172.56) #0.2868537 --> exactly what gives rptGaussian function, seems a rounding of of rpt()
 
 
 #betweenness
-rpt(betweenness ~ (1|Tag), grname = "Tag", data = new_data, datatype = "Gaussian", CI=0.95,
+r3 <-rpt(betweenness ~ (1|Tag), grname = "Tag", data = new_data, datatype = "Gaussian", CI=0.95,
     nboot = 1000, npermut = 0)
 #R  = 0.093
 #SE = 0.069
@@ -1515,14 +1515,15 @@ rpt(betweenness ~ (1|Tag), grname = "Tag", data = new_data, datatype = "Gaussian
 #Singular Fit problems
 
 # SW: does it make sense to include all of these predictors when we found they are not good predictors in our model above? Should we not just include the random effect?
+#EZ: Yes indeed, it is now corrected. Still singularity problems
 
-rptGaussian(betweenness ~ factor.order2 + scale.age + Chick.weight  + (1|Tag), grname= "Tag", data= new_data, CI = 0.95, nboot = 1000, npermut=0)
+r4 <- rptGaussian(betweenness ~ (1|Tag), grname= "Tag", data= new_data, CI = 0.95, nboot = 1000, npermut=0)
 #singular boundary fit problem --> probably overfitting --> random part too complex which I found wierd
 #Repeatability for Tag
-#R  = 0.098
-#SE = 0.074
-#CI = [0, 0.271]
-#P  = 0.109 [LRT]
+#R  = 0.093
+#SE = 0.065
+#CI = [0, 0.234]
+#P  = 0.0699 [LRT]
 #NA [Permutation]
 
 #Other method: by using the ICC (intraclass correlation coefficient)
@@ -1573,17 +1574,16 @@ network_week4 <- get_network(gbi4.sub, data_format="GBI",
                              association_index="SRI")
 
 # SW: I guess the sampling needs to happen here rather than after calling the igraph function:
-new_order <- sample(rownames(network_week4))
-rownames(network_week4) <- new_order
-colnames(network_week4) <- new_order
+#EZ: sample the rownames instead of the vertices (is exactly the same but sample (V) does not work as well)
+new_order <- sample(rownames(network_week4))#resample the nodes
+rownames(network_week4) <- new_order#recreate the matrix
+colnames(network_week4) <- new_order#recreate the matrix with the resampled nodes
 
 net4 <- graph_from_adjacency_matrix(network_week4,mode= c("undirected"), diag=FALSE, weighted=TRUE)
-#s4 <- sample(V(net4), replace=F) #when doing so I lose the pairs that were made
-s4_deg <- degree(net4)#doens't work
+s4_deg <- degree(net4) #degree of the resampled network
 
-# should work now. 
 
-# SW: I see you have tried different things down below. I think the above approach is actually very promising! I have taken what you have started and put it in a funciton
+# SW: I see you have tried different things down below. I think the above approach is actually very promising! I have taken what you have started and put it in a function
 
 
 permute.networks <- function(gbi, week){
@@ -1599,17 +1599,18 @@ permute.networks <- function(gbi, week){
   perm_deg <- degree(net)
   perm_betw <- betweenness(net)
   
-  perm <- as.data.frame(as.matrix(cbind( week, perm_deg, perm_betw)))
+  perm <- as.data.frame(as.matrix(cbind(week, perm_deg, perm_betw))) #why convert it into a matrix here?
   perm$Tag <- rownames(perm)
-  rownames(perm) <- NULL
+  rownames(perm) <- NULL#Why setting the rownames of perm here to NULL?
   return(perm)
 }
 
 
 # as an example, here it runs for just week 4:
-perm4 <- permute.networks(gbi=gbi4.sub, week=4)
+perm4 <- permute.networks(gbi=gbi4.sub, week=4) #reuse the function created above but specify it for a specific week
 head(perm4)
-
+perm5 <- permute.networks(gbi=gbi5.sub, week=5) 
+head(perm5)
 
 # now we want to run this for all weeks and 1000 times - I try this in a loop here:
 
@@ -1621,10 +1622,19 @@ for(i in 1:1000){
 
   perm4 <- permute.networks(gbi=gbi4.sub, week=4)
   perm5 <- permute.networks(gbi=gbi5.sub, week=5)
-  # complete this list of weekly networks
+  perm6 <- permute.networks(gbi=gbi6.sub, week=6)
+  perm7 <- permute.networks(gbi=gbi7.sub, week=7)
+  perm8 <- permute.networks(gbi=gbi8.sub, week=8)
+  perm9 <- permute.networks(gbi=gbi9.sub, week=9)
+  perm10 <- permute.networks(gbi=gbi10.sub, week=10)
+  perm11 <- permute.networks(gbi=gbi11.sub, week=11)
+  perm12 <- permute.networks(gbi=gbi12.sub, week=12)
+  perm13 <- permute.networks(gbi=gbi13.sub, week=13)
+  perm14 <- permute.networks(gbi=gbi14.sub, week=14)
+  
   
   perm_combined <- rbind(perm4,
-                         perm5) # also complete the list here
+                         perm5,perm6, perm7, perm8, perm9, perm10, perm11, perm12, perm13, perm14) # also complete the list here
   
   # we save it in a list
   perm_object[[i]] <- perm_combined
@@ -1637,25 +1647,123 @@ perm_object[[1]]
 # data frame 2:
 perm_object[[2]]
 # etc.
+str(perm_object[[1]])
+#prob: these dataframes or not different 
 
+
+
+#Does this work?
+R_perm_deg1 <- rptGaussian(perm_deg ~ (1|Tag), grname= "Tag", data= perm_object[[1]] , CI = 0.95, nboot = 1000, npermut=0)$R
+#Singularity fit problems
 
 # Now you should be able to run the repeatability function on each of those object slots:
 # see if you can figure it out and how to store the repeatability output for each of the data frames
+library(lmerTest)
+library(lme4)
+per_deg_mod <- glmer(perm_deg ~ (1|Tag), data= perm_object[[1]], family = gaussian)
+summary(per_deg_mod)#I have no variance in Tags, which is weird
+#Again, I have singular fit problems
 
+
+#Maybe I don't need to do a loop here as I already have a thousand dataframes
+#I need the R for each of these dataframes (each dataframe containing the 10 weeks of study but resulting from the node-based permutation method)
 for(i in 1:1000){
   
-  perm_object[[i]] # here is a hint on how you can get the correct data frame
-  
-  
+  R_perm_deg <- rptGaussian(perm_deg ~ (1|Tag), grname= "Tag", data= perm_object[[i]] , CI = 0.95, nboot = 1000, npermut=0)$R
+  R_perm_bet <- rptGaussian(perm_betw ~ (1|Tag), grname= "Tag", data= perm_object[[i]] , CI = 0.95, nboot = 1000, npermut=0)$R
   
 }
+#boundary singular fit problem
+#Also too heavy for my computer to run. Takes more than 4 hours and then R collapses.
+
+#Maybe just go directly to the repeatability
+R_perm_deg <- rptGaussian(perm_deg ~ (1|Tag), grname= "Tag", data= perm_object[[i]] , CI = 0.95, nboot = 1000, npermut=0)$R
+R_perm_bet <- rptGaussian(perm_betw ~ (1|Tag), grname= "Tag", data= perm_object[[i]] , CI = 0.95, nboot = 1000, npermut=0)$R
+#Singular fit problems
+
+#I have singular fit problems because the variance of the random part is close to zero, or equals to zero. 
+#!!! that is because the perm_object slots are not different at all
+#The function maybe has a problem somewhere. 
 
 
-### SW: this is how far I've looked at things properly
+#Maybe use brms instead to fix the singular fit problems
+library(brms)
+#Test with the first dataframe
+R_perm_deg <-  brm(perm_deg ~ (1|Tag) , data=perm_object[[1]])
+summary(R_perm_deg)
+sigma(R_perm_deg)
+pp_check(R_perm_deg, resp="degree")
+#Take the variance within group:
+random_effects <- ranef(R_perm_deg)
+within_group_variance_deg <- var(random_effects$Tag)
+#I can't take the between group variation I think from this output
+#Hence I cannot calculate R by hand neither 
+
+
+p_deg <- length(which(R_perm_deg < r2))/1000
+p_betw <- length(which(R_perm_bet < r4))/1000
+
+
+hist(R_perm_deg)
+abline(v=r2$R, col="red")
+hist(R_perm_bet)
+abline(v=r3$R, col="red")
+
+##Really because the perm slots are not different
+
+#Here I try a new function
+#Maybe the loop should only be for the sample part
+
+permute.networks2 <- function(gbi, week){
+  network_week <- get_network(gbi, data_format="GBI",
+                              association_index="SRI")
+  for(i in 1:1000){
+  new_order <- sample(rownames(network_week))
+  rownames(network_week) <- new_order
+  colnames(network_week) <- new_order }
+  
+  net[[i]] <- graph_from_adjacency_matrix(network_week,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+  perm_deg <- degree(net[[i]])
+  perm_betw <- betweenness(net[[i]])
+  
+  perm <- as.data.frame(as.matrix(cbind(perm_deg, perm_betw)))
+  perm$Tag <- rownames(perm)
+  rownames(perm) <- NULL
+  return(perm)
+}
+
+perm4 <- permute.networks2(gbi=gbi4.sub, week=4)
+head(perm4)
+perm5 <- permute.networks2(gbi=gbi5.sub, week=5) 
+head(perm5)
+perm6 <- permute.networks2(gbi=gbi6.sub, week=6)
+perm7 <- permute.networks2(gbi=gbi7.sub, week=7)
+perm8 <- permute.networks2(gbi=gbi8.sub, week=8)
+perm9 <- permute.networks2(gbi=gbi9.sub, week=9)
+perm10 <- permute.networks2(gbi=gbi10.sub, week=10)
+perm11 <- permute.networks2(gbi=gbi11.sub, week=11)
+perm12 <- permute.networks2(gbi=gbi12.sub, week=12)
+perm13 <- permute.networks2(gbi=gbi13.sub, week=13)
+perm14 <- permute.networks2(gbi=gbi14.sub, week=14)
+
+
+#Then combine the perm all together in a list
+perm_combined2 <- rbind(perm4,
+                       perm5,perm6, perm7, perm8, perm9, perm10, perm11, perm12, perm13, perm14) 
+
+#Then do the R on that list
+R_perm_deg2 <- rptGaussian(perm_deg ~ (1|Tag), grname= "Tag", data= perm_combined2 , CI = 0.95, nboot = 1000, npermut=0)$R
+R_perm_bet2 <- rptGaussian(perm_betw ~ (1|Tag), grname= "Tag", data= perm_combined2 , CI = 0.95, nboot = 1000, npermut=0)$R
+
+#Still problems
 
 
 
 
+
+
+
+##########The other attempts
 np <- network_permutation(gbi4.sub)#???https://cran.r-project.org/web/packages/asnipe/asnipe.pdf  and https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/2041-210X.12121
 #this function already makes a 1000 permutations, by default
 #Too heavy for my computer :/ 
