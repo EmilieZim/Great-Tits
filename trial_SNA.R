@@ -1585,6 +1585,7 @@ s4_deg <- degree(net4) #degree of the resampled network
 
 # SW: I see you have tried different things down below. I think the above approach is actually very promising! I have taken what you have started and put it in a function
 
+#Take only the chicks and the ones with a fledge order, so that in the function the lengths are correct
 ID.chicks <- as.vector(na.omit(subset(fd$Tag, fd$Who=="Chick" & !is.na(fd$Fledge.order))))
 
 
@@ -1621,9 +1622,8 @@ head(perm5)
 # I am only running it on week 4 and 5, but you can add all of the others equivalently
 perm_object <- NULL
 
-for(i in 1:1000){
+for(i in 1:10){
 
-  #perm4 <- permute.networks(gbi=gbi4.sub, week=4)
   perm5 <- permute.networks(gbi=gbi5.sub, week=5)
   perm6 <- permute.networks(gbi=gbi6.sub, week=6)
   perm7 <- permute.networks(gbi=gbi7.sub, week=7)
@@ -1693,28 +1693,131 @@ R_perm_bet <- rptGaussian(perm_betw ~ (1|Tag), grname= "Tag", data= perm_object[
 
 #Maybe use brms instead to fix the singular fit problems
 library(brms)
+library(ggplot2)
+library(tidybayes)
+library(dbplyr)
 #Test with the first dataframe
-R_perm_deg <-  brm(perm_deg ~ (1|Tag) , data=perm_object[[1]])
-summary(R_perm_deg)
-sigma(R_perm_deg)
-pp_check(R_perm_deg, resp="degree")
-#Take the variance within group:
-random_effects <- ranef(R_perm_deg)
-within_group_variance_deg <- var(random_effects$Tag)
-#I can't take the between group variation I think from this output
-#Hence I cannot calculate R by hand neither 
+head(perm_object[[1]])
+brm_perm_deg <-  brm(perm_deg ~ (1|Tag) , data=perm_object[[1]], family = gaussian)
+brm_perm_btw <-  brm(perm_betw ~ (1|Tag) , data=perm_object[[1]], family = gaussian)
 
 
-p_deg <- length(which(R_perm_deg < r2))/1000
-p_betw <- length(which(R_perm_bet < r4))/1000
+brm_perm_deg1 <- bf(perm_deg ~ (1|Tag), sigma ~ 0, family = 'Gaussian')#not sure about the sigma part
+brm_perm_btw1 <- bf(perm_betw ~ (1|Tag), sigma ~ 0, family = 'Gaussian')#not sure about the sigma part
+
+variance_deg_1 <- brm(brm_perm_deg1, data = perm_object[[1]],family = gaussian) 
+variance_btw_1 <- brm(brm_perm_btw1, data = perm_object[[1]],family = gaussian) 
 
 
-hist(R_perm_deg)
-abline(v=r2$R, col="red")
-hist(R_perm_bet)
-abline(v=r3$R, col="red")
+get_variables(variance_deg_1)[1:30] #shows how to right the variables for the spread_draws()
+get_variables(variance_btw_1)[1:30] #shows how to right the variables for the spread_draws()
 
-##Really because the perm slots are not different
+post.data.deg <- variance_deg_1 %>% spread_draws(sd_Tag__Intercept, b_Intercept)
+post.data.btw <- variance_btw_1 %>% spread_draws(sd_Tag__Intercept, b_Intercept)
+
+
+#Among-individual variance for each life_stage
+post.data.deg$Va <- post.data.deg$sd_Tag__Intercept^2
+post.data.btw$Va <- post.data.btw$sd_Tag__Intercept^2
+
+
+#Within-individual variance for each life stage
+post.data.deg$Vw<- exp(post.data.deg$b_Intercept)^2
+#why not?
+post.data.deg$Vw<- post.data.deg$b_Intercept^2
+post.data.btw$Vw<- post.data.btw$b_Intercept^2
+
+#Repeatability
+head(post.data.deg)
+head(post.data.btw)
+post.data.deg1 <- post.data.deg %>%
+  dplyr::mutate(R_rand_deg = Va/(Va + Vw))
+
+post.data.btw1 <- post.data.btw %>%
+  dplyr::mutate(R_rand_btw = Va/(Va + Vw))
+
+hist(post.data.deg1$R_rand_deg)
+mean(post.data.deg1$R_rand_deg)
+#library(HPDI) #not available for my R version
+#rethinking::HPDI(post.data1$R, prob = 0.95)
+# #|0.95     0.95| 
+#   0.1321628 0.4393982
+hist(post.data.btw1$R_rand_btw)
+mean(post.data.btw1$R_rand_btw)
+#0.5414158 --> that is high!!!
+
+
+#So using this and putting into a function
+
+R_rand_degree <- NULL
+R_rand_betweenness <- NULL
+
+for(i in 1:1000){
+  
+  brm_perm_deg <-  brm(perm_deg ~ (1|Tag) , data=perm_object[[i]], family = gaussian)
+  brm_perm_btw <-  brm(perm_betw ~ (1|Tag) , data=perm_object[[i]], family = gaussian)
+  
+  
+  brm_perm_deg1 <- bf(perm_deg ~ (1|Tag), sigma ~ 0, family = 'Gaussian')#not sure about the sigma part
+  brm_perm_btw1 <- bf(perm_betw ~ (1|Tag), sigma ~ 0, family = 'Gaussian')#not sure about the sigma part
+  
+  variance_deg_1 <- brm(brm_perm_deg1, data = perm_object[[i]],family = gaussian) 
+  variance_btw_1 <- brm(brm_perm_btw1, data = perm_object[[i]],family = gaussian) 
+  
+  
+  get_variables(variance_deg_1)[1:30] #shows how to right the variables for the spread_draws()
+  get_variables(variance_btw_1)[1:30] #shows how to right the variables for the spread_draws()
+  
+  post.data.deg <- variance_deg_1 %>% spread_draws(sd_Tag__Intercept, b_Intercept)
+  post.data.btw <- variance_btw_1 %>% spread_draws(sd_Tag__Intercept, b_Intercept)
+  
+  
+  #Among-individual variance for each life_stage
+  post.data.deg$Va <- post.data.deg$sd_Tag__Intercept^2
+  post.data.btw$Va <- post.data.btw$sd_Tag__Intercept^2
+  
+  
+  #Within-individual variance for each life stage
+  post.data.deg$Vw<- exp(post.data.deg$b_Intercept)^2
+  #why not?
+  post.data.deg$Vw<- post.data.deg$b_Intercept^2
+  post.data.btw$Vw<- post.data.btw$b_Intercept^2
+  
+  #Repeatability
+  head(post.data.deg)
+  head(post.data.btw)
+  post.data.deg1 <- post.data.deg %>%
+    dplyr::mutate(R_rand_deg = Va/(Va + Vw))
+  
+  post.data.btw1 <- post.data.btw %>%
+    dplyr::mutate(R_rand_btw = Va/(Va + Vw))
+  
+  R_rand_degree <- post.data.deg1$R_rand_deg
+  R_rand_betweenness <- post.data.btw1$R_rand_btw
+}
+
+p_dg <- length(which(R_rand_degree < r2))/1000
+p_btw <- length(which(R_rand_betweenness < r4))/1000
+
+hist(post.data.deg1$R_rand_deg)
+abline(v=r4, col="red")
+
+
+#for object=1
+hist(post.data.deg1$R_rand_deg)
+mean(post.data.deg1$R_rand_deg)
+#library(HPDI) #not available for my R version
+#rethinking::HPDI(post.data1$R, prob = 0.95)
+# #|0.95     0.95| 
+#   0.1321628 0.4393982
+hist(post.data.btw1$R_rand_btw)
+mean(post.data.btw1$R_rand_btw)
+#0.5414158 --> that is high!!!
+
+
+
+
+
 
 #Here I try a new function
 #Maybe the loop should only be for the sample part
