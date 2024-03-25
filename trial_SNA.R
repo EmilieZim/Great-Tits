@@ -1585,11 +1585,14 @@ s4_deg <- degree(net4) #degree of the resampled network
 
 # SW: I see you have tried different things down below. I think the above approach is actually very promising! I have taken what you have started and put it in a function
 
+ID.chicks <- as.vector(na.omit(subset(fd$Tag, fd$Who=="Chick" & !is.na(fd$Fledge.order))))
+
 
 permute.networks <- function(gbi, week){
   
-  network_week <- get_network(gbi, data_format="GBI",
-                               association_index="SRI")
+  network_week <- get_network(gbi[,which(colnames(gbi) %in% ID.chicks)], data_format="GBI",
+                               association_index="SRI"
+                              )
   
   new_order <- sample(rownames(network_week))
   rownames(network_week) <- new_order
@@ -1620,7 +1623,7 @@ perm_object <- NULL
 
 for(i in 1:1000){
 
-  perm4 <- permute.networks(gbi=gbi4.sub, week=4)
+  #perm4 <- permute.networks(gbi=gbi4.sub, week=4)
   perm5 <- permute.networks(gbi=gbi5.sub, week=5)
   perm6 <- permute.networks(gbi=gbi6.sub, week=6)
   perm7 <- permute.networks(gbi=gbi7.sub, week=7)
@@ -1633,7 +1636,7 @@ for(i in 1:1000){
   perm14 <- permute.networks(gbi=gbi14.sub, week=14)
   
   
-  perm_combined <- rbind(perm4,
+  perm_combined <- rbind(
                          perm5,perm6, perm7, perm8, perm9, perm10, perm11, perm12, perm13, perm14) # also complete the list here
   
   # we save it in a list
@@ -1651,6 +1654,9 @@ str(perm_object[[1]])
 #prob: these dataframes or not different 
 
 
+boxplot(new_data$degree~new_data$Tag)
+
+boxplot(perm_object[[1]]$perm_deg~perm_object[[1]]$Tag)
 
 #Does this work?
 R_perm_deg1 <- rptGaussian(perm_deg ~ (1|Tag), grname= "Tag", data= perm_object[[1]] , CI = 0.95, nboot = 1000, npermut=0)$R
