@@ -1700,6 +1700,9 @@ library(dbplyr)
 R_rand_degree <- NULL
 R_rand_betweenness <- NULL
 
+#I applied here the code comming from the paper FID analysis, https://www.sciencedirect.com/science/article/abs/pii/S000334722200001X 
+#It is simplified, see below
+
 for(i in 1:10){
   
   #first bf, short for brmsformula. Not necessary here as I want only the sigma for each Tag, not necessarily for other groups, such as per sex, age etc. 
@@ -1748,12 +1751,12 @@ for(i in 1:10){
 hist(R_rand_degree)
 hist(R_rand_betweenness)
 
-##Observed Repeatability
+##Observed Repeatability, simplified
 brm_obs_deg <-  brm(degree ~ (1|Tag) , data=new_data, family = gaussian)
 brm_obs_btw <-  brm(betweenness ~ (1|Tag) , data=new_data, family = gaussian)
 
-get_variables(brm_obs_deg)[1:30] #shows how to wright the variables for the spread_draws()
-get_variables(brm_obs_btw)[1:30] #shows how to wright the variables for the spread_draws()
+get_variables(brm_obs_deg)[1:30] 
+get_variables(brm_obs_btw)[1:30] 
 
 
 post.data.deg.obs <- brm_obs_deg %>% spread_draws(sd_Tag__Intercept, b_Intercept)
@@ -1780,11 +1783,12 @@ post.data.btw.obs1 <- post.data.btw.obs %>%
   dplyr::mutate(R_obs_btw = Va/(Va + Vw))
 
 hist(post.data.deg.obs1$R_obs_deg)
-R_deg <- mean(post.data.deg.obs1$R_obs_deg)
+R_deg <- mean(post.data.deg.obs1$R_obs_deg)#0.08382244 --> this is the observed R for degree
 hist(post.data.btw.obs1$R_obs_btw)
-R_btw <-mean(post.data.btw.obs1$R_obs_btw)
+R_btw <-mean(post.data.btw.obs1$R_obs_btw)#0.2121233 --> This is the observed R for betweenness
 
 ##Simplified code:
+#Randomized R
 
 R_rand_degree <- NULL
 R_rand_betweenness <- NULL
@@ -1802,23 +1806,38 @@ for(i in 1:10){
   Rbtw_rand <- (post.data.btw.rand$sd_Tag__Intercept^2)/((post.data.btw.obs$sd_Tag__Intercept^2) + (post.data.btw.obs$b_Intercept^2))
   R_rand_betweenness <- mean(Rbtw_rand) }
 
-#wierd
+#weird, this is propably not the right approach, see below
 p_dg <- length(which(R_rand_degree < R_deg))/10
-p_btw <- length(which(R_rand_betweenness < R_btw)/10
+p_btw <- length(which(R_rand_betweenness < R_btw))/10
 
 #According to: https://www.researchgate.net/publication/344290324_Repeatable_social_network_node-based_metrics_across_populations_and_contexts_in_a_passerine
-#R_obs is considered significant when their IC falls in the mean of R_rand
+#R_obs is considered significant when their IC doesn't fall in the mean of R_rand
 
-R_rand_degree # value: 
-R_rand_betweenness # value
+R_rand_degree # value: 0.0002467443
+R_rand_betweenness # value: 0.002503622
 
 #take IC of the R_obs_deg and R_obs_btw
 #For this I need package rethinking (version 2.13)
+library("rstan")
+install.packages(c('devtools','coda','mvtnorm'))
+library(devtools)
+install_github("rmcelreath/rethinking")
+install.packages(c('coda','mvtnorm'))
+options(repos=c(getOption('repos'),rethinking='http://xcelab.net/R'))
+install.packages('rethinking',type='source')
+library(rethinking)
+
 
 rethinking::HPDI(post.data.deg.obs1$R_obs_deg, prob = 0.95)
 # |0.95     0.95| 
-#   
+#  0.01919194 0.16394538  
 rethinking::HPDI(post.data.btw.obs1$R_obs_btw, prob = 0.95)
+# |0.95        0.95| 
+#3.542073e-07 5.193643e-01 
+
+#Both R_rand for degree and betweenness don't fall into the IC of the observed R
+#Hence, the observed R's are significant
+#Still weird because the observed R are really different from the R obtained by rptR
 
 
 
