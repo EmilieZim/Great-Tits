@@ -1696,80 +1696,29 @@ library(brms)
 library(ggplot2)
 library(tidybayes)
 library(dbplyr)
-#Test with the first dataframe
-head(perm_object[[1]])
-brm_perm_deg <-  brm(perm_deg ~ (1|Tag) , data=perm_object[[1]], family = gaussian)
-brm_perm_btw <-  brm(perm_betw ~ (1|Tag) , data=perm_object[[1]], family = gaussian)
-
-
-brm_perm_deg1 <- bf(perm_deg ~ (1|Tag), sigma ~ 0, family = 'Gaussian')#not sure about the sigma part
-brm_perm_btw1 <- bf(perm_betw ~ (1|Tag), sigma ~ 0, family = 'Gaussian')#not sure about the sigma part
-
-variance_deg_1 <- brm(brm_perm_deg1, data = perm_object[[1]],family = gaussian) 
-variance_btw_1 <- brm(brm_perm_btw1, data = perm_object[[1]],family = gaussian) 
-
-
-get_variables(variance_deg_1)[1:30] #shows how to right the variables for the spread_draws()
-get_variables(variance_btw_1)[1:30] #shows how to right the variables for the spread_draws()
-
-post.data.deg <- variance_deg_1 %>% spread_draws(sd_Tag__Intercept, b_Intercept)
-post.data.btw <- variance_btw_1 %>% spread_draws(sd_Tag__Intercept, b_Intercept)
-
-
-#Among-individual variance for each life_stage
-post.data.deg$Va <- post.data.deg$sd_Tag__Intercept^2
-post.data.btw$Va <- post.data.btw$sd_Tag__Intercept^2
-
-
-#Within-individual variance for each life stage
-post.data.deg$Vw<- exp(post.data.deg$b_Intercept)^2
-#why not?
-post.data.deg$Vw<- post.data.deg$b_Intercept^2
-post.data.btw$Vw<- post.data.btw$b_Intercept^2
-
-#Repeatability
-head(post.data.deg)
-head(post.data.btw)
-post.data.deg1 <- post.data.deg %>%
-  dplyr::mutate(R_rand_deg = Va/(Va + Vw))
-
-post.data.btw1 <- post.data.btw %>%
-  dplyr::mutate(R_rand_btw = Va/(Va + Vw))
-
-hist(post.data.deg1$R_rand_deg)
-mean(post.data.deg1$R_rand_deg)
-#library(HPDI) #not available for my R version
-#rethinking::HPDI(post.data1$R, prob = 0.95)
-# #|0.95     0.95| 
-#   0.1321628 0.4393982
-hist(post.data.btw1$R_rand_btw)
-mean(post.data.btw1$R_rand_btw)
-#0.5414158 --> that is high!!!
-
-
-#So using this and putting into a function
 
 R_rand_degree <- NULL
 R_rand_betweenness <- NULL
 
-for(i in 1:1000){
+for(i in 1:10){
   
+  #first bf, short for brmsformula. Not necessary here as I want only the sigma for each Tag, not necessarily for other groups, such as per sex, age etc. 
+  #brm_perm_deg1 <- bf(perm_deg ~ (1|Tag), family = 'Gaussian', data= data=perm_object[[i]])
+  #brm_perm_btw1 <- bf(perm_betw ~ (1|Tag), family = 'Gaussian', data= data=perm_object[[i]])
+  
+  #set_prior --> don't know what that is
+  
+  #brms
   brm_perm_deg <-  brm(perm_deg ~ (1|Tag) , data=perm_object[[i]], family = gaussian)
   brm_perm_btw <-  brm(perm_betw ~ (1|Tag) , data=perm_object[[i]], family = gaussian)
   
+  #add criterion?
   
-  brm_perm_deg1 <- bf(perm_deg ~ (1|Tag), sigma ~ 0, family = 'Gaussian')#not sure about the sigma part
-  brm_perm_btw1 <- bf(perm_betw ~ (1|Tag), sigma ~ 0, family = 'Gaussian')#not sure about the sigma part
+  #get_variables(variance_deg_1)[1:30] #shows how to right the variables for the spread_draws()
+  #get_variables(variance_btw_1)[1:30] #shows how to right the variables for the spread_draws()
   
-  variance_deg_1 <- brm(brm_perm_deg1, data = perm_object[[i]],family = gaussian) 
-  variance_btw_1 <- brm(brm_perm_btw1, data = perm_object[[i]],family = gaussian) 
-  
-  
-  get_variables(variance_deg_1)[1:30] #shows how to right the variables for the spread_draws()
-  get_variables(variance_btw_1)[1:30] #shows how to right the variables for the spread_draws()
-  
-  post.data.deg <- variance_deg_1 %>% spread_draws(sd_Tag__Intercept, b_Intercept)
-  post.data.btw <- variance_btw_1 %>% spread_draws(sd_Tag__Intercept, b_Intercept)
+  post.data.deg <- brm_perm_deg %>% spread_draws(sd_Tag__Intercept, b_Intercept)
+  post.data.btw <- brm_perm_btw %>% spread_draws(sd_Tag__Intercept, b_Intercept)
   
   
   #Among-individual variance for each life_stage
@@ -1778,7 +1727,7 @@ for(i in 1:1000){
   
   
   #Within-individual variance for each life stage
-  post.data.deg$Vw<- exp(post.data.deg$b_Intercept)^2
+  #post.data.deg$Vw<- exp(post.data.deg$b_Intercept)^2
   #why not?
   post.data.deg$Vw<- post.data.deg$b_Intercept^2
   post.data.btw$Vw<- post.data.btw$b_Intercept^2
@@ -1796,260 +1745,91 @@ for(i in 1:1000){
   R_rand_betweenness <- post.data.btw1$R_rand_btw
 }
 
-p_dg <- length(which(R_rand_degree < r2))/1000
-p_btw <- length(which(R_rand_betweenness < r4))/1000
+hist(R_rand_degree)
+hist(R_rand_betweenness)
 
-hist(post.data.deg1$R_rand_deg)
-abline(v=r4, col="red")
+##Observed Repeatability
+brm_obs_deg <-  brm(degree ~ (1|Tag) , data=new_data, family = gaussian)
+brm_obs_btw <-  brm(betweenness ~ (1|Tag) , data=new_data, family = gaussian)
 
-
-#for object=1
-hist(post.data.deg1$R_rand_deg)
-mean(post.data.deg1$R_rand_deg)
-#library(HPDI) #not available for my R version
-#rethinking::HPDI(post.data1$R, prob = 0.95)
-# #|0.95     0.95| 
-#   0.1321628 0.4393982
-hist(post.data.btw1$R_rand_btw)
-mean(post.data.btw1$R_rand_btw)
-#0.5414158 --> that is high!!!
+get_variables(brm_obs_deg)[1:30] #shows how to wright the variables for the spread_draws()
+get_variables(brm_obs_btw)[1:30] #shows how to wright the variables for the spread_draws()
 
 
+post.data.deg.obs <- brm_obs_deg %>% spread_draws(sd_Tag__Intercept, b_Intercept)
+post.data.btw.obs <- brm_obs_btw %>% spread_draws(sd_Tag__Intercept, b_Intercept)
+summary(brm_obs_deg)
 
+#Among-individual variance for each life_stage
+post.data.deg.obs$Va <- post.data.deg.obs$sd_Tag__Intercept^2
+post.data.btw.obs$Va <- post.data.btw.obs$sd_Tag__Intercept^2
 
+#Within-individual variance 
+#post.data.deg.obs$Vw<- exp(post.data.deg.obs$b_Intercept)^2
+#why not? :
+post.data.deg.obs$Vw<- post.data.deg.obs$b_Intercept^2
+post.data.btw.obs$Vw<- post.data.btw.obs$b_Intercept^2
 
+#Repeatability
+head(post.data.deg.obs)
+head(post.data.btw.obs)
+post.data.deg.obs1 <- post.data.deg.obs %>%
+  dplyr::mutate(R_obs_deg = Va/(Va + Vw))
 
-#Here I try a new function
-#Maybe the loop should only be for the sample part
+post.data.btw.obs1 <- post.data.btw.obs %>%
+  dplyr::mutate(R_obs_btw = Va/(Va + Vw))
 
-permute.networks2 <- function(gbi, week){
-  network_week <- get_network(gbi, data_format="GBI",
-                              association_index="SRI")
-  for(i in 1:1000){
-  new_order <- sample(rownames(network_week))
-  rownames(network_week) <- new_order
-  colnames(network_week) <- new_order }
+hist(post.data.deg.obs1$R_obs_deg)
+R_deg <- mean(post.data.deg.obs1$R_obs_deg)
+hist(post.data.btw.obs1$R_obs_btw)
+R_btw <-mean(post.data.btw.obs1$R_obs_btw)
+
+##Simplified code:
+
+R_rand_degree <- NULL
+R_rand_betweenness <- NULL
+
+for(i in 1:10){
   
-  net[[i]] <- graph_from_adjacency_matrix(network_week,mode= c("undirected"), diag=FALSE, weighted=TRUE)
-  perm_deg <- degree(net[[i]])
-  perm_betw <- betweenness(net[[i]])
+  brm_perm_deg <-  brm(perm_deg ~ (1|Tag) , data=perm_object[[i]], family = gaussian)
+  brm_perm_btw <-  brm(perm_betw ~ (1|Tag) , data=perm_object[[i]], family = gaussian)
   
-  perm <- as.data.frame(as.matrix(cbind(perm_deg, perm_betw)))
-  perm$Tag <- rownames(perm)
-  rownames(perm) <- NULL
-  return(perm)
-}
-
-perm4 <- permute.networks2(gbi=gbi4.sub, week=4)
-head(perm4)
-perm5 <- permute.networks2(gbi=gbi5.sub, week=5) 
-head(perm5)
-perm6 <- permute.networks2(gbi=gbi6.sub, week=6)
-perm7 <- permute.networks2(gbi=gbi7.sub, week=7)
-perm8 <- permute.networks2(gbi=gbi8.sub, week=8)
-perm9 <- permute.networks2(gbi=gbi9.sub, week=9)
-perm10 <- permute.networks2(gbi=gbi10.sub, week=10)
-perm11 <- permute.networks2(gbi=gbi11.sub, week=11)
-perm12 <- permute.networks2(gbi=gbi12.sub, week=12)
-perm13 <- permute.networks2(gbi=gbi13.sub, week=13)
-perm14 <- permute.networks2(gbi=gbi14.sub, week=14)
-
-
-#Then combine the perm all together in a list
-perm_combined2 <- rbind(perm4,
-                       perm5,perm6, perm7, perm8, perm9, perm10, perm11, perm12, perm13, perm14) 
-
-#Then do the R on that list
-R_perm_deg2 <- rptGaussian(perm_deg ~ (1|Tag), grname= "Tag", data= perm_combined2 , CI = 0.95, nboot = 1000, npermut=0)$R
-R_perm_bet2 <- rptGaussian(perm_betw ~ (1|Tag), grname= "Tag", data= perm_combined2 , CI = 0.95, nboot = 1000, npermut=0)$R
-
-#Still problems
-
-
-
-
-
-
-
-##########The other attempts
-np <- network_permutation(gbi4.sub)#???https://cran.r-project.org/web/packages/asnipe/asnipe.pdf  and https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/2041-210X.12121
-#this function already makes a 1000 permutations, by default
-#Too heavy for my computer :/ 
-
-#attempt1
-t=1000
-d.permutation4 <- vector(length=t)
-for (i in 1:t){
-  s4 <- network_permutation(gbi4.sub)
-  nets4 <- graph_from_adjacency_matrix(s4,mode= c("undirected"), diag=FALSE, weighted=TRUE)
-  d.permutation4[i]=degree(nets4)
-}
-
-
-
-d.permutation4
-#do this for every week
-#calculate repeatability of these randomized degrees
-#Compare it then with the actual repeatability value
-
-#attempt2
-d.permutation <- function (gbiX.sub, new_data) {
-  r.rand <- NULL
-    for(i in 1:1000){
-    s <- network_permutation(gbiX.sub) #this randomizes the nodes of the network
-    net.rand <- graph_from_adjacency_matrix(s,mode= c("undirected"), diag=FALSE, weighted=TRUE)
-    degree.rand <- degree(net.rand)
-    r.rand[i] <-rptGaussian(degree.rand ~ factor.order2 + scale.age + Chick.weight  + (1|Tag), grname= "Tag", data= new_data, CI = 0.95, nboot = 1000, npermut=0)$R
-    }
+  post.data.deg.rand <- brm_perm_deg %>% spread_draws(sd_Tag__Intercept, b_Intercept)
+  post.data.btw.rand <- brm_perm_btw %>% spread_draws(sd_Tag__Intercept, b_Intercept)
   
-}
+  Rdeg_rand <- (post.data.deg.rand$sd_Tag__Intercept^2)/((post.data.deg.obs$sd_Tag__Intercept^2) + (post.data.deg.obs$b_Intercept^2))
+  R_rand_degree <- mean(Rdeg_rand)
+  Rbtw_rand <- (post.data.btw.rand$sd_Tag__Intercept^2)/((post.data.btw.obs$sd_Tag__Intercept^2) + (post.data.btw.obs$b_Intercept^2))
+  R_rand_betweenness <- mean(Rbtw_rand) }
 
-#for week4
-r.week4 <- d.permutation(network_weekX=network_week4, gbiX.sub = gbi4.sub)
-r.rand_week4 <- r.week4$r.rand
-#etc
-#This approach doesn't make sens because it calculates repeatability only week per week,
-#  while repeatability should be calculated across all weeks.
-#This is not right
+#wierd
+p_dg <- length(which(R_rand_degree < R_deg))/10
+p_btw <- length(which(R_rand_betweenness < R_btw)/10
 
+#According to: https://www.researchgate.net/publication/344290324_Repeatable_social_network_node-based_metrics_across_populations_and_contexts_in_a_passerine
+#R_obs is considered significant when their IC falls in the mean of R_rand
 
-#attempt3
-d.permutation4 <- function (network_weekX) {
-  t <- NULL
-  netX <- graph_from_adjacency_matrix(network_weekX,mode= c("undirected"), diag=FALSE, weighted=TRUE)
-  degree.obs <- degree(netX)
-  for(i in 1:1000){
-    s <- network_permutation(gbiX.sub)
-    net.rand <- graph_from_adjacency_matrix(s,mode= c("undirected"), diag=FALSE, weighted=TRUE)
-    deg.rand <- degree(netX.rand)
-    t[i] <- deg.rand}
-}
+R_rand_degree # value: 
+R_rand_betweenness # value
 
-#for week4
-deg.week4 <- assortment.function(network_weekX=network_week4, gbiX.sub = gbi4.sub)
-deg.rand_week4 <- deg.week4$t
+#take IC of the R_obs_deg and R_obs_btw
+#For this I need package rethinking (version 2.13)
 
-#for week5
-#etc
-
-#Make table to combine all these randomized degrees
-#Then calculate the new repeatability with the newly randomized degrees
-#Then compare the new repeatability with the observed repeatability 
-#Seems a bit too elaborate, maybe this can be done more rapidly with a beter function
+rethinking::HPDI(post.data.deg.obs1$R_obs_deg, prob = 0.95)
+# |0.95     0.95| 
+#   
+rethinking::HPDI(post.data.btw.obs1$R_obs_btw, prob = 0.95)
 
 
 
+##########sources
+#https://cran.r-project.org/web/packages/asnipe/asnipe.pdf  
+#https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/2041-210X.12121
+# https://link.springer.com/article/10.1007/s00265-017-2425-y
 
-### attempt 4: Maybe the best but still not so sure
-#Following: https://link.springer.com/article/10.1007/s00265-017-2425-y
-#Compare the newly created R, obtained from the 1000 permutations for each weekly network, with the observed R
-#This should show whether it is repeatable or not.
-
-
-#1. permutation of each weekly network
-s <- network_permutation(gbiX.sub)
-#2. extract the degree
-net.rand <- graph_from_adjacency_matrix(s,mode= c("undirected"), diag=FALSE, weighted=TRUE)
-degree.rand <- degree(net.rand)
-#3. Do this for each week
-#4. Calculate repeatability of the random degrees of all these weeks combined
-#5.Repeat this a thousand times
-#6.Then compare it to the observed r.
-
-d.permutation <- function (gbi4.sub, gbi5.sub ,gbi6.sub,gbi7.sub,gbi8.sub, gbi9.sub, gbi10.sub,
-                           gbi11.sub, gbi12.sub, gbi13.sub, gbi14.sub, new_data) {
-  r.rand <- NULL
-  r.obs <-rptGaussian(degree ~ factor.order2 + scale.age + Chick.weight  + (1|Tag), grname= "Tag", data= new_data, CI = 0.95, nboot = 1000, npermut=0)$R
-  
-  for(i in 1:1000){
-    #permutation of each weekly network
-    s4 <- network_permutation(gbi4.sub) #this randomizes the nodes of the network
-    #calculate the degree of the randomized weekly network
-    net.rand4 <- graph_from_adjacency_matrix(s4,mode= c("undirected"), diag=FALSE, weighted=TRUE)
-    degree.rand4 <- degree(net.rand4)
-    s5 <- network_permutation(gbi5.sub) #this randomizes the nodes of the network
-    net.rand5 <- graph_from_adjacency_matrix(s5,mode= c("undirected"), diag=FALSE, weighted=TRUE)
-    degree.rand5 <- degree(net.rand5)
-    s6 <- network_permutation(gbi6.sub) #this randomizes the nodes of the network
-    net.rand6 <- graph_from_adjacency_matrix(s6,mode= c("undirected"), diag=FALSE, weighted=TRUE)
-    degree.rand6 <- degree(net.rand6)
-    s7 <- network_permutation(gbi7.sub) #this randomizes the nodes of the network
-    net.rand7 <- graph_from_adjacency_matrix(s7,mode= c("undirected"), diag=FALSE, weighted=TRUE)
-    degree.rand7 <- degree(net.rand7)
-    s8 <- network_permutation(gbi8.sub) #this randomizes the nodes of the network
-    net.rand8 <- graph_from_adjacency_matrix(s8,mode= c("undirected"), diag=FALSE, weighted=TRUE)
-    degree.rand8 <- degree(net.rand8)
-    s9 <- network_permutation(gbi9.sub) #this randomizes the nodes of the network
-    net.rand9 <- graph_from_adjacency_matrix(s9,mode= c("undirected"), diag=FALSE, weighted=TRUE)
-    degree.rand9 <- degree(net.rand9)
-    s10 <- network_permutation(gbi10.sub) #this randomizes the nodes of the network
-    net.rand10 <- graph_from_adjacency_matrix(s10,mode= c("undirected"), diag=FALSE, weighted=TRUE)
-    degree.rand10 <- degree(net.rand10)
-    s11 <- network_permutation(gbi11.sub) #this randomizes the nodes of the network
-    net.rand11 <- graph_from_adjacency_matrix(s11,mode= c("undirected"), diag=FALSE, weighted=TRUE)
-    degree.rand11 <- degree(net.rand11)
-    s12 <- network_permutation(gbi12.sub) #this randomizes the nodes of the network
-    net.rand12 <- graph_from_adjacency_matrix(s12,mode= c("undirected"), diag=FALSE, weighted=TRUE)
-    degree.rand12 <- degree(net.rand12)
-    s13 <- network_permutation(gbi13.sub) #this randomizes the nodes of the network
-    net.rand13 <- graph_from_adjacency_matrix(s13,mode= c("undirected"), diag=FALSE, weighted=TRUE)
-    degree.rand13 <- degree(net.rand13)
-    s14 <- network_permutation(gbi14.sub) #this randomizes the nodes of the network
-    net.rand14 <- graph_from_adjacency_matrix(s14,mode= c("undirected"), diag=FALSE, weighted=TRUE)
-    degree.rand14 <- degree(net.rand14)
-    
-    #keep the Tags for each week 
-    Tag <- V(net.rand4)$name
-    degree_table4 <- data.frame(Tag = Tag, degree = degree.rand4)
-    Tag <- V(net.rand5)$name
-    degree_table5 <- data.frame(Tag = Tag, degree = degree.rand5)
-    Tag <- V(net.rand6)$name
-    degree_table6 <- data.frame(Tag = Tag, degree = degree.rand6)
-    Tag <- V(net.rand7)$name
-    degree_table7 <- data.frame(Tag = Tag, degree = degree.rand7)
-    Tag <- V(net.rand8)$name
-    degree_table8 <- data.frame(Tag = Tag, degree = degree.rand8)
-    Tag <- V(net.rand9)$name
-    degree_table9 <- data.frame(Tag = Tag, degree = degree.rand9)
-    Tag <- V(net.rand10)$name
-    degree_table10 <- data.frame(Tag = Tag, degree = degree.rand10)
-    Tag <- V(net.rand11)$name
-    degree_table11 <- data.frame(Tag = Tag, degree = degree.rand11)
-    Tag <- V(net.rand12)$name
-    degree_table12 <- data.frame(Tag = Tag, degree = degree.rand12)
-    Tag <- V(net.rand13)$name
-    degree_table13 <- data.frame(Tag = Tag, degree = degree.rand13)
-    Tag <- V(net.rand14)$name
-    degree_table14 <- data.frame(Tag = Tag, degree = degree.rand14)
-    
-  
-    degree_list <- list(degree.table4, degree.table5, degree.table6, degree.table7, degree.table8, degree.table9,
-                        degree.table0, degree.table11, degree.table12, degree.table13, degree.table14)
-    
-    #merge all data frames in list
-    library(dplyr)
-    degree.rand <- degree_list %>% reduce(full_join, by='Tag')
-    
-    #of the newly created degrees, calculate the repeatability
-    r.rand[i] <-rptGaussian(degree.rand ~ factor.order2 + scale.age + Chick.weight  + (1|Tag), grname= "Tag", data= new_data, CI = 0.95, nboot = 1000, npermut=0)$R
-  }
-  p <- length(which(r.rand < r.obs))/1000
-}
-
-d.permutation$p
-hist(d.permutation$r.rand)
-abline(v=d.permutation$r.obs, col="red")
-
-#Then do the same for betweenness
-
-#Cannot run this as my computer is not powerful enough
-
-
-
-##Other method where they rank the individuals first before doing the node-permutations
 #https://link.springer.com/article/10.1007/s00265-012-1428-y
 #https://academic.oup.com/beheco/article/28/2/429/2724497
 
-
+#https://discourse.mc-stan.org/t/brms-modeling-slope-effects-to-measure-individual-consistency/15798/3
 
 
