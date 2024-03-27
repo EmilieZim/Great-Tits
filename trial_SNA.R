@@ -1752,8 +1752,21 @@ hist(R_rand_degree)
 hist(R_rand_betweenness)
 
 ##Observed Repeatability, simplified
-brm_obs_deg <-  brm(degree ~ (1|Tag) , data=new_data, family = gaussian)
-brm_obs_btw <-  brm(betweenness ~ (1|Tag) , data=new_data, family = gaussian)
+#Only from week5
+#Only ind that have been seen at least in 3 different weeks (so we have individuals that have at least 3 "trials")
+
+new_data0 <- new_data %>%
+  subset(Week >= 5)
+
+filtered_nd <- new_data0 %>%
+  group_by(Tag) %>%
+  filter(n() >= 3)
+
+View(filtered_nd)
+length(unique(filtered_nd$Tag))#only 24 chicks
+
+brm_obs_deg <-  brm(degree ~ (1|Tag) , data=filtered_nd, family = gaussian)
+brm_obs_btw <-  brm(betweenness ~ (1|Tag) , data=filtered_nd, family = gaussian)
 
 get_variables(brm_obs_deg)[1:30] 
 get_variables(brm_obs_btw)[1:30] 
@@ -1783,9 +1796,9 @@ post.data.btw.obs1 <- post.data.btw.obs %>%
   dplyr::mutate(R_obs_btw = Va/(Va + Vw))
 
 hist(post.data.deg.obs1$R_obs_deg)
-R_deg <- mean(post.data.deg.obs1$R_obs_deg)#0.08382244 --> this is the observed R for degree
+R_deg <- mean(post.data.deg.obs1$R_obs_deg)#0.04681559 --> this is the observed R for degree
 hist(post.data.btw.obs1$R_obs_btw)
-R_btw <-mean(post.data.btw.obs1$R_obs_btw)#0.2121233 --> This is the observed R for betweenness
+R_btw <-mean(post.data.btw.obs1$R_obs_btw)#0.2190036 --> This is the observed R for betweenness
 
 ##Simplified code:
 #Randomized R
@@ -1806,15 +1819,15 @@ for(i in 1:10){
   Rbtw_rand <- (post.data.btw.rand$sd_Tag__Intercept^2)/((post.data.btw.obs$sd_Tag__Intercept^2) + (post.data.btw.obs$b_Intercept^2))
   R_rand_betweenness <- mean(Rbtw_rand) }
 
-#weird, this is propably not the right approach, see below
+#weird, this is probably not the right approach, see below
 p_dg <- length(which(R_rand_degree < R_deg))/10
 p_btw <- length(which(R_rand_betweenness < R_btw))/10
 
 #According to: https://www.researchgate.net/publication/344290324_Repeatable_social_network_node-based_metrics_across_populations_and_contexts_in_a_passerine
 #R_obs is considered significant when their IC doesn't fall in the mean of R_rand
 
-R_rand_degree # value: 0.0002467443
-R_rand_betweenness # value: 0.002503622
+R_rand_degree # value: 0.0003952475
+R_rand_betweenness # value: 0.001956394
 
 #take IC of the R_obs_deg and R_obs_btw
 #For this I need package rethinking (version 2.13)
@@ -1830,14 +1843,56 @@ library(rethinking)
 
 rethinking::HPDI(post.data.deg.obs1$R_obs_deg, prob = 0.95)
 # |0.95     0.95| 
-#  0.01919194 0.16394538  
+# 0.0002732524 0.0926220306  
 rethinking::HPDI(post.data.btw.obs1$R_obs_btw, prob = 0.95)
 # |0.95        0.95| 
-#3.542073e-07 5.193643e-01 
+#7.285400e-09 5.262557e-01  
 
-#Both R_rand for degree and betweenness don't fall into the IC of the observed R
-#Hence, the observed R's are significant
+#R_rand of degree doesn't fall into the IC of the observed R, while that of betweenness falls within the R observed IC
+#Hence, only the observed R of degree is significant
+#However, 0.08 is a very small number. 
 #Still weird because the observed R are really different from the R obtained by rptR
+#If this is right, we could use the next season of the data, do the same analysis and so see if the repeatability would have changed 
+#  --> a way to search for ontogeny of the social network position
+
+
+#Trying to solve the singularity problem
+#Maybe because the individuals don't have the same number of "trials", hence the individuals were not seen an equal number of times
+#Maybe there are not enough individuals present in the first weeks as well
+#lets start at week6
+which(new_data0$Week==5)#I checked this for each week
+new_data01 <- new_data %>%
+  subset(Week >= 6)
+
+r2 <-rptGaussian(degree ~ (1|Tag), grname= "Tag", data= new_data01, CI = 0.95, nboot = 1000, npermut=0)
+r4 <-rptGaussian(betweenness ~ (1|Tag), grname= "Tag", data= new_data01, CI = 0.95, nboot = 1000, npermut=0)
+#Actually, betweenness doesn't have a normal distribution -- >I take the log
+hist(log(new_data01$betweenness+1))# +1 to solve the log0 prob
+new_data01$logb <- log(new_data01$betweenness+1)
+r4 <-rptGaussian(logb~ (1|Tag), grname= "Tag", data= new_data01, CI = 0.95, nboot = 1000, npermut=0)
+#Still issues
+#Maybe it is because there is not a reasonable number of trials per individual to obtain robust estimates of repeatability.
+#Insufficient data can lead to unreliable estimates, maybe also singularity problems?
+
+#Lets say that the individuals must have been seen at least in three different weeks (~3 trials)
+library(dplyr)
+filtered_data <- new_data0 %>%
+  group_by(Tag) %>%
+  filter(n() >= 3) 
+length(unique(filtered_data$Tag))#only 24 chicks --> maybe this is not enough data ?
+length(unique(new_data0$Tag))#38 chicks
+rd <-rptGaussian(degree ~ (1|Tag), grname= "Tag", data= filtered_data, CI = 0.95, nboot = 1000, npermut=0)
+#what if at least seen 5 times?
+filtered_data2 <- new_data0 %>%
+  group_by(Tag) %>%
+  filter(n() >= 5) 
+length(unique(filtered_data2$Tag))#16 chicks only 
+str(filtered_data2$Family)
+rd <-rptGaussian(degree ~ (1|Tag), grname= "Tag", data= filtered_data2, CI = 0.95, nboot = 100, npermut=0)
+hist(filtered_data2$degree)
+View(filtered_data2)
+
+#There is still an issue, don't know why
 
 
 
