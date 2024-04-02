@@ -49,6 +49,17 @@ gmm.summer$metadata
 gmm.summer$B
 ?gmmevents() # will be helpful - that is how you bring up the documentation of a function
 
+
+#autumn
+# it's stored in an RData object
+load("gmm.autumn.RData")
+head(gmm.autumn)
+View(gmm.autumn)
+
+
+
+
+
 # as a next step, you can try to figure out how to create a social network from the gmm.object and extract social network positions for each individual.
 ##You can start off with creating a social network using all the data
 ###at a later stage we can think of creating weekly networks instead to see how the network positions change over time. 
@@ -62,15 +73,25 @@ plot(g)
 make_graph(gmm.summer)
 
 
-#subsets
+#subsets for summer
 gbi <- gmm.summer$gbi
 metadata <- gmm.summer$metadata
 B <- gmm.summer$B
 
-#generate the network
+#subsets for autumn
+gbi.aut <- gmm.autumn$gbi
+metadata.aut <- gmm.autumn$metadata
+
+
+#generate the network matrix for summer
 library("asnipe")
 network <- get_network(gbi, data_format = "GBI",
                        association_index = "SRI")
+
+#generate the network for autumn
+library(igraph)
+network.autumn <- get_network(gbi.aut, data_format = "GBI",
+                              association_index = "SRI")
 
 #making graph with i_graph 
 library("igraph")
@@ -87,15 +108,19 @@ net_deg <- degree(net)#the number of the adjacent edges of each vertex.
 which.max(net_deg)#0700EDAC58 is the ind with the highest degree (108). It is a female, not a chick.
 which.min(net_deg)#01101775DD  is the ind with the lowest degree
 
+#for autumn
+net.autumn <- graph_from_adjacency_matrix(network.autumn,mode= c("undirected"), diag=FALSE, weighted=TRUE)
 
 
 ###plotting with degree centrality
 plot(net, edge.color= "black", vertex.label.cex= 0.5)
+plot(net.autumn,edge.color= "black", vertex.label.cex= 0.5 )
 
 #I want to make a table where I can see each ind (ring) with its respective centrality degree and fledge order
 #So that next I can see whether the highest degrees are the ones that fledged first
 
 Tag <- V(net)$name
+tag <- V(net.autumn)$name
 
 # Create a data frame with individual names and degree values
 centrality_table <- data.frame(
@@ -166,6 +191,10 @@ plot(ceb, net)
 dendPlot(ceb, mode="hclust")
 #not very visual
 
+
+
+
+
 ####NETWORKS FOR EACH WEEK
 
 #add week column to gbi
@@ -175,6 +204,10 @@ dendPlot(ceb, mode="hclust")
 head(metadata)
 metadata$Date <- as.POSIXct(as.character(metadata$Start), format = "%y%m%d%H%M%S")
 head(metadata)
+
+
+
+head(metadata.aut)
 
 #substracting the 6 first numbers of the Start column
 metadata$date <- substr(metadata$Start , 1, 6)
@@ -189,6 +222,9 @@ metadata$date <- as.numeric(metadata$date)
 
 ###Finally it works with:
 metadata$date <- substr(metadata$Start , 1, 6)
+
+
+
 
 #lets change the $date so I have the year 2020 --> add 20000000 to each $date
 metadata$date2 <- 20000000 + metadata$date
@@ -206,6 +242,27 @@ metadata$week <- as.factor(metadata$week)
 #NB: here the first week correspond to the first seven days of data
 head(metadata)
 str(metadata$week)#14 weeks
+
+
+
+#do it now for autumn
+head(metadata.aut)#the Starts are not ranked progressively by date 
+min(metadata.aut$Start)#200929 --> first day of data 2020-09-29
+str(metadata.aut$Start)
+metadata.aut <- metadata.aut[order(metadata.aut$Start,decreasing = FALSE), ] #now in chronological order
+head(metadata.aut)
+metadata.aut$date <- substr(metadata.aut$Start , 1, 6)
+str(metadata.aut$date)
+metadata.aut$date <- as.numeric(metadata.aut$date)
+metadata.aut$date <- 20000000 + metadata.aut$date
+metadata.aut$date <- as.character(metadata.aut$date)
+metadata.aut$date <- as.Date(metadata.aut$date, format="%Y%m%d", origin= "20200929")
+week_boundaries.aut <- seq(min(metadata.aut$date), max(metadata.aut$date) + 7, by="7 days")
+metadata.aut$week <- cut(metadata.aut$date, breaks = week_boundaries.aut, labels = FALSE)
+metadata.aut$week <- as.factor(metadata.aut$week)
+head(metadata.aut)
+View(metadata.aut)
+str(metadata.aut$week)# 3 weeks
 
 
 ##THE WEEKS
@@ -831,6 +888,111 @@ ggplot(dcc14, aes(x = betweenness, y = Fledge.order)) +
        y = "Fledge Order")
 
 
+###Now for autumn
+
+#week1
+which(metadata.aut$week == 1)
+gbi.aut.1 <- gbi.aut[1:104,]
+
+threshold <- 5
+gbi.aut.1.sub <- gbi.aut.1 [,colSums(gbi.aut.1 )>=threshold]
+dim(gbi.aut.1.sub)
+# 29 individuals seen at least 5 times in week1 of autumn 
+
+network.aut.week1 <- get_network(gbi.aut.1.sub, data_format="GBI",
+                              association_index="SRI")
+
+net.aut.week1 <- graph_from_adjacency_matrix(network.aut.week1,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+net.aut.1_deg <- degree(net.aut.week1)
+plot(net.aut.week1, edge.color= "black", vertex.label.cex= 0.5)
+
+#degree
+Tag <- V(net.aut.week1)$name
+degree.aut_table1 <- data.frame(
+  Tag = Tag,
+  degree = net.aut.1_deg)
+
+#betweenness
+btw.aut.1 <- betweenness(net.aut.week1,v = V(net.aut.week1),directed = F)
+betweenness.aut_table1 <- data.frame(
+  Tag = Tag,
+  betweenness = btw.aut.1)
+
+table.aut.week1 <- merge(degree.aut_table1,betweenness.aut_table1, by.x= "Tag" )
+table.aut.week1$Week <- 1
+head(table.aut.week1)
+
+#week2
+which(metadata.aut$week == 2)
+gbi.aut.2 <- gbi.aut[105:203,]
+
+threshold <- 5
+gbi.aut.2.sub <- gbi.aut.2 [,colSums(gbi.aut.2 )>=threshold]
+dim(gbi.aut.2.sub)
+# 24 individuals seen at least 5 times in week1 of autumn 
+
+network.aut.week2 <- get_network(gbi.aut.2.sub, data_format="GBI",
+                                 association_index="SRI")
+
+net.aut.week2 <- graph_from_adjacency_matrix(network.aut.week2,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+net.aut.2_deg <- degree(net.aut.week2)
+plot(net.aut.week2, edge.color= "black", vertex.label.cex= 0.5)
+
+#degree
+Tag <- V(net.aut.week2)$name
+degree.aut_table2 <- data.frame(
+  Tag = Tag,
+  degree = net.aut.2_deg)
+
+#betweenness
+btw.aut.2 <- betweenness(net.aut.week2,v = V(net.aut.week2),directed = F)
+betweenness.aut_table2 <- data.frame(
+  Tag = Tag,
+  betweenness = btw.aut.2)
+
+table.aut.week2 <- merge(degree.aut_table2,betweenness.aut_table2, by.x= "Tag" )
+table.aut.week2$Week <- 2
+head(table.aut.week2)
+
+#week3
+which(metadata.aut$week == 3)
+gbi.aut.3 <- gbi.aut[204:371,]
+#length(rownames(metadata.aut)), ok I have all the data
+
+threshold <- 5
+gbi.aut.3.sub <- gbi.aut.3[,colSums(gbi.aut.3 )>=threshold]
+dim(gbi.aut.3.sub)
+# 24 individuals seen at least 5 times in week1 of autumn 
+
+network.aut.week3 <- get_network(gbi.aut.3.sub, data_format="GBI",
+                                 association_index="SRI")
+
+net.aut.week3 <- graph_from_adjacency_matrix(network.aut.week3,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+net.aut.3_deg <- degree(net.aut.week3)
+plot(net.aut.week3, edge.color= "black", vertex.label.cex= 0.5)
+
+#degree
+Tag <- V(net.aut.week3)$name
+degree.aut_table3 <- data.frame(
+  Tag = Tag,
+  degree = net.aut.3_deg)
+
+#betweenness
+btw.aut.3 <- betweenness(net.aut.week3,v = V(net.aut.week3),directed = F)
+betweenness.aut_table3 <- data.frame(
+  Tag = Tag,
+  betweenness = btw.aut.3)
+
+table.aut.week3 <- merge(degree.aut_table3,betweenness.aut_table3, by.x= "Tag" )
+table.aut.week3$Week <- 3
+head(table.aut.week3)
+
+##merge all the aut_table, in order to have one dataframe so I can measure Repeatability for autumn
+library(dplyr)
+table.aut.deg.btw <- rbind(table.aut.week1, table.aut.week2, table.aut.week3)
+
+
+
 ########REGRESSION MODELS
 ###Regression models
 #fledge order = ordinal + has to be centered around zero (use scale function for this)
@@ -979,6 +1141,7 @@ str(new_data$fledge.order.scaled.within)
 str(new_data$Tag)
 str(new_data$degree)
 str(new_data$age)
+
 #The models
 library(lme4)
 library(lmerTest)
@@ -1587,7 +1750,7 @@ s4_deg <- degree(net4) #degree of the resampled network
 
 #Take only the chicks and the ones with a fledge order, so that in the function the lengths are correct
 ID.chicks <- as.vector(na.omit(subset(fd$Tag, fd$Who=="Chick" & !is.na(fd$Fledge.order))))
-
+#maybe that it is not necessary to have the chicks with a fledge order only. But then, I don't have the same length with gbi...
 
 permute.networks <- function(gbi, week){
   
@@ -1893,6 +2056,162 @@ hist(filtered_data2$degree)
 View(filtered_data2)
 
 #There is still an issue, don't know why
+
+#######################  
+#Now for the autumn network data
+#######################
+
+#dataframe with betweenness and degree values for each week, for each individual: table.aut.deg.btw
+#Is it really necessary to use the chicks with a fledge order? 
+ID.chicks.aut <- as.vector(na.omit(subset(fd$Tag, fd$Who=="Chick")))
+
+
+permute.networks.aut <- function(gbi, week){
+  
+  network_week <- get_network(gbi[,which(colnames(gbi) %in% ID.chicks.aut)], data_format="GBI",
+                              association_index="SRI"
+  )
+  
+  new_order <- sample(rownames(network_week))
+  rownames(network_week) <- new_order
+  colnames(network_week) <- new_order
+  
+  net <- graph_from_adjacency_matrix(network_week,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+  perm_deg <- degree(net)
+  perm_betw <- betweenness(net)
+  
+  perm.aut <- as.data.frame(as.matrix(cbind(week, perm_deg, perm_betw))) 
+  perm.aut$Tag <- rownames(perm.aut)
+  rownames(perm.aut) <- NULL
+  return(perm.aut)
+}
+
+perm_object.aut <- NULL
+
+for(i in 1:10){
+  
+  perm.aut1 <- permute.networks.aut(gbi=gbi.aut.1.sub, week=1)
+  perm.aut2 <- permute.networks.aut(gbi=gbi.aut.2.sub, week=2)
+  perm.aut3 <- permute.networks.aut(gbi=gbi.aut.3.sub, week=3)
+  
+  
+  perm_combined.aut <- rbind(
+    perm.aut1, perm.aut2, perm.aut3) # also complete the list here
+  
+  # we save it in a list
+  perm_object.aut[[i]] <- perm_combined.aut
+  
+}
+
+##Observed Repeatability, simplified
+#Only ind that have been seen at least in 3 different weeks (so we have individuals that have at least 3 "trials")
+data_autumn <- merge(table.aut.deg.btw, fd, by.x="Tag")
+head(data_autumn)
+
+subset_autumn <- na.omit(data_autumn)#34 chicks with fledge order
+#actually, not necessary that these individuals have a fledge ordern they just need to be a chick
+chicks_autumn <- subset(data_autumn, Who=="Chick")
+head(chicks_autumn)
+
+subset_chicks_autumn <- chicks_autumn %>%
+  group_by(Tag) %>%
+  filter(n() == 3)
+#no individual has been seen 3 times, once each week
+
+subset_chicks_autumn <- chicks_autumn %>%
+  group_by(Tag) %>%
+  filter(n() == 2)
+
+length(colnames(subset_chicks_autumn))#18, hence 9 individuals only --> not enough to test repeatability I suppose
+
+head(subset_chicks_autumn)
+
+
+library(brms)
+library(ggplot2)
+library(tidybayes)
+library(dbplyr)
+brm_obs_deg.aut <-  brm(degree ~ (1|Tag) , data=subset_chicks_autumn, family = gaussian)
+brm_obs_btw.aut <-  brm(betweenness ~ (1|Tag) , data=subset_chicks_autumn, family = gaussian)
+
+get_variables(brm_obs_deg.aut)[1:30] 
+get_variables(brm_obs_btw.aut)[1:30] 
+
+
+post.data.deg.obs.aut <- brm_obs_deg.aut %>% spread_draws(sd_Tag__Intercept, b_Intercept)
+post.data.btw.obs.aut <- brm_obs_btw.aut %>% spread_draws(sd_Tag__Intercept, b_Intercept)
+
+#Among-individual varianc
+post.data.deg.obs.aut$Va <- post.data.deg.obs.aut$sd_Tag__Intercept^2
+post.data.btw.obs.aut$Va <- post.data.btw.obs.aut$sd_Tag__Intercept^2
+
+#Within-individual variance 
+post.data.deg.obs.aut$Vw<- post.data.deg.obs.aut$b_Intercept^2
+post.data.btw.obs.aut$Vw<- post.data.btw.obs.aut$b_Intercept^2
+
+#Repeatability
+head(post.data.deg.obs.aut)
+head(post.data.btw.obs.aut)
+post.data.deg.obs1.aut <- post.data.deg.obs.aut %>%
+  dplyr::mutate(R_obs_deg.aut = Va/(Va + Vw))
+
+post.data.btw.obs1.aut <- post.data.btw.obs.aut %>%
+  dplyr::mutate(R_obs_btw.aut = Va/(Va + Vw))
+
+hist(post.data.deg.obs1.aut$R_obs_deg.aut)
+R_deg.aut <- mean(post.data.deg.obs1.aut$R_obs_deg.aut)#0.01863995 --> this is the observed R for degree
+hist(post.data.btw.obs1.aut$R_obs_btw.aut)
+R_btw.aut <-mean(post.data.btw.obs1.aut$R_obs_btw.aut)#0.4571816 --> This is the observed R for betweenness which is high
+
+##Simplified code:
+#Randomized R
+
+R_rand_degree.aut <- NULL
+R_rand_betweenness.aut <- NULL
+
+for(i in 1:10){
+  
+  brm_perm_deg.aut <-  brm(perm_deg ~ (1|Tag) , data=perm_object.aut[[i]], family = gaussian)
+  brm_perm_btw.aut <-  brm(perm_betw ~ (1|Tag) , data=perm_object.aut[[i]], family = gaussian)
+  
+  post.data.deg.rand.aut <- brm_perm_deg %>% spread_draws(sd_Tag__Intercept, b_Intercept)
+  post.data.btw.rand.aut <- brm_perm_btw %>% spread_draws(sd_Tag__Intercept, b_Intercept)
+  
+  Rdeg_rand.aut <- (post.data.deg.rand.aut$sd_Tag__Intercept^2)/((post.data.deg.obs.aut$sd_Tag__Intercept^2) + (post.data.deg.obs.aut$b_Intercept^2))
+  R_rand_degree.aut <- mean(Rdeg_rand.aut)
+  Rbtw_rand.aut <- (post.data.btw.rand.aut$sd_Tag__Intercept^2)/((post.data.btw.obs.aut$sd_Tag__Intercept^2) + (post.data.btw.obs.aut$b_Intercept^2))
+  R_rand_betweenness.aut <- mean(Rbtw_rand.aut) }
+
+
+#According to: https://www.researchgate.net/publication/344290324_Repeatable_social_network_node-based_metrics_across_populations_and_contexts_in_a_passerine
+#R_obs is considered significant when their IC doesn't fall in the mean of R_rand
+
+R_rand_degree.aut # value: 0.001738892
+R_rand_betweenness.aut # value: 2.294327
+
+#take IC of the R_obs_deg and R_obs_btw.aut
+#For this I need package rethinking (version 2.13)
+library("rstan")
+install.packages(c('devtools','coda','mvtnorm'))
+library(devtools)
+install_github("rmcelreath/rethinking")
+install.packages(c('coda','mvtnorm'))
+options(repos=c(getOption('repos'),rethinking='http://xcelab.net/R'))
+install.packages('rethinking',type='source')
+library(rethinking)
+
+
+rethinking::HPDI(post.data.deg.obs1.aut$R_obs_deg.aut, prob = 0.95)
+# |0.95     0.95| 
+# 6.842014e-08 7.268689e-02   --> R_rand_degree.aut # value: 0.001738892 falls within the IC
+rethinking::HPDI(post.data.btw.obs1.aut$R_obs_btw.aut, prob = 0.95)
+# |0.95        0.95| 
+#2.820320e-09 9.929506e-01 --> R_rand_betweenness.aut # value: 2.294327 falls without the IC
+
+#Repeatability of betweenness is high. Higher now than in the summer and now repeatable
+#What is weird is that now the degree is no longer statistically repeatable. Whereas it is in the summer
+#I think these results cannot be trusted as the individuals are only seen twice in the dataset 
+#  And those seen twice in the dataset are in poor number.
 
 
 
