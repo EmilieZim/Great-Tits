@@ -2064,6 +2064,7 @@ View(filtered_data2)
 #dataframe with betweenness and degree values for each week, for each individual: table.aut.deg.btw
 #Is it really necessary to use the chicks with a fledge order? 
 ID.chicks.aut <- as.vector(na.omit(subset(fd$Tag, fd$Who=="Chick")))
+length(colnames(gbi))
 
 
 permute.networks.aut <- function(gbi, week){
@@ -2212,6 +2213,51 @@ rethinking::HPDI(post.data.btw.obs1.aut$R_obs_btw.aut, prob = 0.95)
 #What is weird is that now the degree is no longer statistically repeatable. Whereas it is in the summer
 #I think these results cannot be trusted as the individuals are only seen twice in the dataset 
 #  And those seen twice in the dataset are in poor number.
+
+#################
+#Across seasons (including the summer and autumn data)
+#################
+#make the dataset including both summer and autumn data 
+#combine these:
+metadata.aut
+metadata
+
+#prob: not the same gbi --> I can oly use one gbi for the network.
+#Can I merge gmm.autumn with gmm.summer?
+gmm.seasons <- merge(gmm.autumn, gmm.summer)
+gmm.seasons$gbi
+#I don't think I can merge these two... So maybe go back to the rptR method but than it won't be comparable with the analysis above (R within each season)
+
+#merge the dataframes of summer and autumn with the degree and betweenness values
+library(dplyr)
+
+data_summer <-  new_data %>%
+  select(Tag, degree, betweenness)
+
+hist(data_summer$degree)#2 pics
+hist(data_summer$betweenness)# --> not normal
+data_summer$modif.btw <- log(data_summer$betweenness+1)
+hist(data_summer$modif.btw) #better
+
+hist(log10(data_summer$betweenness)+1)
+data_summer$modif.btw2 <-  log10(data_summer$betweenness+1)
+data_summer <-  data_summer %>%
+  select(Tag, degree, modif.btw2)
+
+library(rptR)
+#Observed R
+rpt(degree ~ (1|Tag), grname= "Tag", data= data_summer, datatype = "Gaussian", CI = 0.95, nboot = 1000, npermut=0 )
+#no singularity problems
+rpt(modif.btw2 ~ (1|Tag), grname= "Tag", data= data_summer, datatype = "Gaussian", CI = 0.95, nboot = 1000, npermut=0 )
+#singularity issues --> to me it are the values of betweenness that are the issue
+
+#Still the same issues
+
+
+
+
+
+
 
 
 
