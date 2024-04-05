@@ -1955,6 +1955,8 @@ head(post.data.btw.obs)
 post.data.deg.obs1 <- post.data.deg.obs %>%
   dplyr::mutate(R_obs_deg = Va/(Va + Vw))
 
+
+
 post.data.btw.obs1 <- post.data.btw.obs %>%
   dplyr::mutate(R_obs_btw = Va/(Va + Vw))
 
@@ -2271,4 +2273,85 @@ rpt(modif.btw2 ~ (1|Tag), grname= "Tag", data= data_summer, datatype = "Gaussian
 
 #https://discourse.mc-stan.org/t/brms-modeling-slope-effects-to-measure-individual-consistency/15798/3
 
+
+
+# 2) Visitation order -----------------------------------------------------
+
+load("gmm.summer.RData")
+net.data.summer <- read.delim("Mill.data.summer.txt", sep=" ", row.names = 1)
+
+gmm.summer$metadata$Location2 <- substr(gmm.summer$metadata$Location, 8, 13)
+
+# for each group, we have the start and end time and a location
+
+library(data.table)
+
+# we add a new column called 'group'
+net.data.summer[, "group"] <- NA
+
+for(i in 1:length(gmm.summer$metadata$Start)){ # for each start time
+  i.loc <- gmm.summer$metadata$Location2[i] # we extract the location
+  rows.i <-  rownames(subset(net.data.summer, 
+                             net.data.summer$Date.Time>=gmm.summer$metadata$Start[i] &
+                               net.data.summer$Date.Time<=gmm.summer$metadata$End[i] &
+                               net.data.summer$location == gmm.summer$metadata$Location2[i]))
+  net.data.summer[rows.i, "group"] <- i
+  
+}
+
+
+
+net.data.summer[which(is.na(net.data.summer$group)),]
+
+length(which(is.na(net.data.summer$group)))
+# 2397 observations are not part of a group. Perhaps these were birds that arrived before I officially started the observations? Or then they were dropped for some reason by the gmm function? I might need to rerun the gmm function to see what's going on there. 
+
+# for now, we subset it to exclude those
+
+net.data.summer <- subset(net.data.summer, !is.na(net.data.summer$group))
+
+length(unique(net.data.summer$group))
+# 9913 groups remain
+
+# make sure it's in correct order (first ordered by groups, then time)
+net.data.summer <- net.data.summer[with(net.data.summer, order(group, Date.Time)), ]
+
+# we create a new column called 'order' all filled with NA
+net.data.summer$order <- NA
+# to the very first visitor, we assign a 1
+net.data.summer$order[1] <- 1
+# now we loop through the entire data frame
+for(i in 2:length(net.data.summer$group)){
+  # we extract the PIT tag and the group number of bird i and the bird and group number that came just before
+  group.i <- net.data.summer$group[i]
+  ID.i <- net.data.summer$PIT[i]
+  group.i_minus1 <- net.data.summer$group[i-1]
+  ID.i_minus1 <- net.data.summer$PIT[i-1]
+  
+  # we also don't want to assign a new order number, if the bird had already arrived as part of the current group, so we extract the PIT tags that are already part of the current group
+  sub <- net.data.summer[1:(i-1),]
+  sub <- subset(sub, sub$group==group.i)
+  already.present <- unique(sub$PIT)
+  
+  if(ID.i %in% already.present){ # if the bird hard already arrived as part of the current group
+    net.data.summer$order[i] <- 'already.present' # we assign 'already.present'
+  } else if(group.i==group.i_minus1 & ID.i!=ID.i_minus1){
+    # if it's the same group but a new bird, we add the order+1
+    net.data.summer$order[i] <- max(as.numeric(na.omit(sub$order[sub$order != "already.present"])))+1
+  } else if(group.i!=group.i_minus1){
+    # if it's a new group, we start over with the order=1
+    net.data.summer$order[i] <- 1
+  }
+}
+
+
+# we remove the rows that contain 'already present' to only have each bird in each group once
+net.data.summer <- subset(net.data.summer, !(is.na(net.data.summer$order)) & net.data.summer$order != "already.present")
+
+head(net.data.summer, 40)
+
+# save it as the object with the order
+save(net.data.summer, file="net.data.summer.w.order.RData")
+
+load("net.data.summer.w.order.RData")
 
