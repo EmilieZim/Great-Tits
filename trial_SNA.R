@@ -2349,6 +2349,9 @@ for(i in 2:length(net.data.summer$group)){
 net.data.summer <- subset(net.data.summer, !(is.na(net.data.summer$order)) & net.data.summer$order != "already.present")
 
 head(net.data.summer, 40)
+net.data.summer$order <- as.numeric(net.data.summer$order)
+max(net.data.summer$order)
+hist(net.data.summer$order)
 
 # save it as the object with the order
 save(net.data.summer, file="net.data.summer.w.order.RData")
