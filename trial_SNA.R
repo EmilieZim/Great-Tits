@@ -2356,5 +2356,159 @@ hist(net.data.summer$order)
 # save it as the object with the order
 save(net.data.summer, file="net.data.summer.w.order.RData")
 
-load("net.data.summer.w.order.RData")
+View(net.data.summer)
+str(net.data.summer$order)
+net.data.summer$order <- as.numeric(net.data.summer$order)
+net.data.summer$group <- as.numeric(net.data.summer$group)
+##order is nested in group
+
+
+##The research questions
+#1. Are individuals consistent in the order within which they arrive at the feeder? 
+#2. And could the order of arrival be predicted by age class (first year/adult), 
+#3. and for juveniles, could this be predicted by the fledge order?
+ 
+View(new_data)#only the chicks with a fledge order
+View(net.data.summer)
+net.data.summer$Tag <- net.data.summer$PIT
+
+View(fd)
+full.data.summer <- merge(fd, net.data.summer, by.x="Tag")
+View(full.data.summer)
+
+##1. Repeatability of order and model (for chicks)
+library(rptR)
+library(lmerTest)
+library(lme4)
+hist(net.data.summer$order) #looks like Poisson
+
+chicks.data.summer <- merge(new_data, net.data.summer, by.x="Tag")
+View(chicks.data.summer)
+#3. and for juveniles, could the order be predicted by the fledge order?
+
+###I believe it should be a Poisson model as order can be considered as a count
+glm.order.Chick <- glmer(order ~ fledge.order.scaled.within*scale(Chick.weight) + fledge.order.scaled.within*scale(age) +scale(Chick.weight)*scale(age) + (1|Tag), family=poisson, data=chicks.data.summer)
+summary(glm.order.Chick)
+glm.order.Chick <- glmer(order ~fledge.order.scaled.within + scale(Chick.weight) +scale(age) + (1|Tag), family=poisson, data=chicks.data.summer)
+summary(glm.order.Chick)#no explanatory variable has a significant effect on order
+#check for multicollinearity with a matrix
+cor_matrix <- cor(chicks.data.summer[, c("fledge.order.scaled.within", "Chick.weight", "age")])
+print(cor_matrix)
+corrplot::corrplot(cor_matrix, method = "circle")
+#the weight and the fledge order seem correlated
+glm.order.Chick <- glmer(order ~fledge.order.scaled.within + (1|Tag), family=poisson, data=chicks.data.summer)
+summary(glm.order.Chick)
+#no effect of fledge order on the order of arrival at the feeders
+rpt(order ~ (1|Tag), grname ="Tag", datatype="Poisson", data=chicks.data.summer, CI = 0.95, nboot = 100, npermut = 0)
+#link scale
+#R  = 0.042 --> low repeatability
+#SE = 0.011
+#CI = [0.015, 0.057]
+#P  = 3.23e-56 [LRT]
+#NA [Permutation]
+#to heavy for my computer apparently so I could only do the nboot=100, if nboot=1000 should be better
+
+
+
+#Calculate score? --> What if I transform the order variable into proportions so I can calculate a score for each individual 
+library(dplyr)
+library(tidyverse)
+
+#calculate the total of groups as a new column "Tot"
+full.data.summer.2 <- full.data.summer %>%
+  group_by(group) %>%
+  summarise(Tot = max(order))
+
+View(full.data.summer.2)
+
+data.summer <- full.data.summer %>%
+  left_join(full.data.summer.2, by = "group")
+
+#calculate now the proportions for each individual, as a score for order
+data.summer$prop<- data.summer$order/data.summer$Tot
+View(data.summer)
+
+hist(data.summer$prop)
+#NB: sometimes not good to transform the initial data to much, not sure this is the right thing to do
+
+#Model
+#Because now it are proportions I can use Binomial distribution
+
+#Only Repeatability of Chicks and fledge order 
+data.summer.chicks <- subset(data.summer, Who=="Chick")
+View(data.summer.chicks)
+data.summer.chicks <- na.omit(data.summer.chicks)
+data.summer.chicks$prop
+
+rpt(prop ~ fledge.order.scaled.within + (1|Tag),  data=data.summer.chicks,  grname="Tag", 
+    nboot=1000, npermut=0, datatype = "Proportion")
+#singular fit problems
+rpt(prop ~ (1|Tag),  data=data.summer.chicks,  grname="Tag", 
+    nboot=1000, npermut=0, datatype = "Proportion")
+#singular fit problems
+
+library(brms)
+glmchicks <- brms(prop ~ fledge.order.scaled.within + (1|Tag), family=binomial, data=data.summer.chicks, weights=Tot)
+summary(glmchicks)#can't check for overdispersion, don't know why
+drop1(glmchicks, test="Chisq")
+
+m <-  brm(prop ~ fledge.order.scaled.within+ (1|Tag) , data=data.summer.chicks )
+summary(m)
+pp_check(m)#no effect
+#look like pretty poor model
+plot(m)
+
+library(tidybayes)
+post.m <- m %>% spread_draws(sd_Tag__Intercept, b_Intercept)
+Rdeg_rand.aut <- (post.data.deg.rand.aut$sd_Tag__Intercept^2)/((post.data.deg.obs.aut$sd_Tag__Intercept^2) + (post.data.deg.obs.aut$b_Intercept^2))
+
+
+R.order.chicks <- (post.m$sd_Tag__Intercept^2)/((post.m$sd_Tag__Intercept^2) + (post.m$b_Intercept^2))
+mean(R.order.chicks)
+#0.004114971 --> very small repeatability
+
+
+#2. And could the order of arrival be predicted by age class (first year/adult)? 
+#find the info on the age class in the paper
+head(full.data.summer)
+str(full.data.summer$Who)
+full.data.summer$Who <- as.factor(full.data.summer$Who)
+glm.Who <- glmer(order ~ Who + (1|Tag), family=poisson, data= full.data.summer)
+summary(glm.Who)#there is an effect of class on the order of arrival to the feeders
+report(glm.Who)
+Anova(glm.Who)
+m.class <-  brm(order ~ Who + (1|Tag) , family=poisson, data= full.data.summer)
+summary(m.class)
+pp_check(m.class)
+library(tidybayes)
+post.m.class <- m.class %>% spread_draws(sd_Tag__Intercept, b_Intercept)
+R_order <- (post.m.class$sd_Tag__Intercept^2)/((post.m.class$sd_Tag__Intercept^2) + (post.m.class$b_Intercept^2))
+mean(R_order)#0.06051628
+#--> very low repeatability, also corresponds to the Variance of Tag in the glm.Who model 
+rpt(order ~ Who + (1|Tag),  data=full.data.summer,  grname="Tag", nboot=1000, npermut=0, datatype = "Poisson")
+
+##graphical illustration
+library(ggplot2)
+ggplot(full.data.summer) + aes(x = Who, y = order) +
+  geom_boxplot(varwidth = TRUE, outlier.alpha = 0) 
+
+###What if we gather males and females together, as one group called adults
+full.data.summer <- full.data.summer %>%
+  mutate(Class = ifelse(Who %in% c("Male", "Female"), "Adult", "Chick"))
+
+full.data.summer$Class <- as.factor(full.data.summer$Class) 
+glm.Class <- glmer(order ~ Class + (1|Tag), family=poisson, data= full.data.summer)
+summary(glm.Class)
+
+#graph
+library(ggplot2)
+ggplot(full.data.summer) + aes(x = Class, y = order) +
+  geom_boxplot(varwidth = TRUE, outlier.alpha = 0)
+
+
+
+
+
+
+
 
