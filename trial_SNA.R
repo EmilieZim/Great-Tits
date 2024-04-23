@@ -2277,8 +2277,8 @@ rpt(modif.btw2 ~ (1|Tag), grname= "Tag", data= data_summer, datatype = "Gaussian
 
 # 2) Visitation order -----------------------------------------------------
 
-load("gmm.summer.RData")
-net.data.summer <- read.delim("Mill.data.summer.txt", sep=" ", row.names = 1)
+load("data/gmm.summer.RData")
+net.data.summer <- read.delim("data/Mill.data.summer.txt", sep=" ", row.names = 1)
 
 gmm.summer$metadata$Location2 <- substr(gmm.summer$metadata$Location, 8, 13)
 
@@ -2354,13 +2354,176 @@ max(net.data.summer$order)
 hist(net.data.summer$order)
 
 # save it as the object with the order
-save(net.data.summer, file="net.data.summer.w.order.RData")
+save(net.data.summer, file="data/net.data.summer.w.order.RData")
+load("data/net.data.summer.w.order.RData")
+
+# do the same for autumn
+
+load("data/gmm.autumn.RData")
+net.data.autumn <- read.delim("data/Mill.data.autumn.txt", sep=",", row.names = 1)
+
+# for each group, we have the start and end time and a location
+
+library(data.table)
+
+# we add a new column called 'group'
+net.data.autumn[, "group"] <- NA
+
+for(i in 1:length(gmm.autumn$metadata$Start)){ # for each start time
+  i.loc <- gmm.autumn$metadata$Location[i] # we extract the location
+  rows.i <-  rownames(subset(net.data.autumn, 
+                             net.data.autumn$Date.Time>=gmm.autumn$metadata$Start[i] &
+                               net.data.autumn$Date.Time<=gmm.autumn$metadata$End[i] &
+                               net.data.autumn$location == gmm.autumn$metadata$Location[i]))
+  net.data.autumn[rows.i, "group"] <- i
+  
+}
+
+
+net.data.autumn[which(is.na(net.data.autumn$group)),]
+
+length(which(is.na(net.data.autumn$group)))
+# all observations are part of a group
+
+length(unique(net.data.autumn$group))
+# 371 groups
+
+# make sure it's in correct order (first ordered by groups, then time)
+net.data.autumn <- net.data.autumn[with(net.data.autumn, order(group, Date.Time)), ]
+
+# we create a new column called 'order' all filled with NA
+net.data.autumn$order <- NA
+# to the very first visitor, we assign a 1
+net.data.autumn$order[1] <- 1
+# now we loop through the entire data frame
+for(i in 2:length(net.data.autumn$group)){
+  # we extract the PIT tag and the group number of bird i and the bird and group number that came just before
+  group.i <- net.data.autumn$group[i]
+  ID.i <- net.data.autumn$PIT[i]
+  group.i_minus1 <- net.data.autumn$group[i-1]
+  ID.i_minus1 <- net.data.autumn$PIT[i-1]
+  
+  # we also don't want to assign a new order number, if the bird had already arrived as part of the current group, so we extract the PIT tags that are already part of the current group
+  sub <- net.data.autumn[1:(i-1),]
+  sub <- subset(sub, sub$group==group.i)
+  already.present <- unique(sub$PIT)
+  
+  if(ID.i %in% already.present){ # if the bird hard already arrived as part of the current group
+    net.data.autumn$order[i] <- 'already.present' # we assign 'already.present'
+  } else if(group.i==group.i_minus1 & ID.i!=ID.i_minus1){
+    # if it's the same group but a new bird, we add the order+1
+    net.data.autumn$order[i] <- max(as.numeric(na.omit(sub$order[sub$order != "already.present"])))+1
+  } else if(group.i!=group.i_minus1){
+    # if it's a new group, we start over with the order=1
+    net.data.autumn$order[i] <- 1
+  }
+}
+
+
+# we remove the rows that contain 'already present' to only have each bird in each group once
+net.data.autumn <- subset(net.data.autumn, !(is.na(net.data.autumn$order)) & net.data.autumn$order != "already.present")
+
+head(net.data.autumn, 40)
+net.data.autumn$order <- as.numeric(net.data.autumn$order)
+max(net.data.autumn$order)
+hist(net.data.autumn$order)
+
+# save it as the object with the order
+save(net.data.autumn, file="data/net.data.autumn.w.order.RData")
+load("data/net.data.autumn.w.order.RData")
+
+## and for winter
+load("data/gmm.winter.RData")
+net.data.winter <- read.delim("data/Mill.data.winter.txt", sep=",", row.names = 1)
+
+# for each group, we have the start and end time and a location
+
+library(data.table)
+
+# we add a new column called 'group'
+net.data.winter[, "group"] <- NA
+
+for(i in 1:length(gmm.winter$metadata$Start)){ # for each start time
+  i.loc <- gmm.winter$metadata$Location[i] # we extract the location
+  rows.i <-  rownames(subset(net.data.winter, 
+                             net.data.winter$Date.Time>=gmm.winter$metadata$Start[i] &
+                               net.data.winter$Date.Time<=gmm.winter$metadata$End[i] &
+                               net.data.winter$location == gmm.winter$metadata$Location[i]))
+  net.data.winter[rows.i, "group"] <- i
+  
+}
+
+
+net.data.winter[which(is.na(net.data.winter$group)),]
+
+length(which(is.na(net.data.winter$group)))
+# all observations are part of a group
+
+length(unique(net.data.winter$group))
+# 421 groups
+
+# make sure it's in correct order (first ordered by groups, then time)
+net.data.winter <- net.data.winter[with(net.data.winter, order(group, Date.Time)), ]
+
+# we create a new column called 'order' all filled with NA
+net.data.winter$order <- NA
+# to the very first visitor, we assign a 1
+net.data.winter$order[1] <- 1
+# now we loop through the entire data frame
+for(i in 2:length(net.data.winter$group)){
+  # we extract the PIT tag and the group number of bird i and the bird and group number that came just before
+  group.i <- net.data.winter$group[i]
+  ID.i <- net.data.winter$PIT[i]
+  group.i_minus1 <- net.data.winter$group[i-1]
+  ID.i_minus1 <- net.data.winter$PIT[i-1]
+  
+  # we also don't want to assign a new order number, if the bird had already arrived as part of the current group, so we extract the PIT tags that are already part of the current group
+  sub <- net.data.winter[1:(i-1),]
+  sub <- subset(sub, sub$group==group.i)
+  already.present <- unique(sub$PIT)
+  
+  if(ID.i %in% already.present){ # if the bird hard already arrived as part of the current group
+    net.data.winter$order[i] <- 'already.present' # we assign 'already.present'
+  } else if(group.i==group.i_minus1 & ID.i!=ID.i_minus1){
+    # if it's the same group but a new bird, we add the order+1
+    net.data.winter$order[i] <- max(as.numeric(na.omit(sub$order[sub$order != "already.present"])))+1
+  } else if(group.i!=group.i_minus1){
+    # if it's a new group, we start over with the order=1
+    net.data.winter$order[i] <- 1
+  }
+}
+
+
+# we remove the rows that contain 'already present' to only have each bird in each group once
+net.data.winter <- subset(net.data.winter, !(is.na(net.data.winter$order)) & net.data.winter$order != "already.present")
+
+head(net.data.winter, 40)
+net.data.winter$order <- as.numeric(net.data.winter$order)
+max(net.data.winter$order)
+hist(net.data.winter$order)
+
+# save it as the object with the order
+save(net.data.winter, file="data/net.data.winter.w.order.RData")
+load("data/net.data.winter.w.order.RData")
+
+# And the new species_age_sex table with all
+# important: some are designated as 'adults' in 2020 even though they weren't born yet (but it doesn't affect the data, since they would not have been seen on the network feeders)
+
+load("data/species_age_sex.RDA")
+
+head(species_age_sex)
+
+# SW: up until here I've made some changes.
+
 
 View(net.data.summer)
 str(net.data.summer$order)
 net.data.summer$order <- as.numeric(net.data.summer$order)
 net.data.summer$group <- as.numeric(net.data.summer$group)
 ##order is nested in group
+
+
+
 
 
 ##The research questions
