@@ -2668,6 +2668,42 @@ library(ggplot2)
 ggplot(full.data.summer) + aes(x = Class, y = order) +
   geom_boxplot(varwidth = TRUE, outlier.alpha = 0)
 
+######order of arrival to feeders with more precise age classes and species
+#data
+net.data.autumn <- read.delim("Mill.data.autumn.txt", sep=",", row.names = 1)
+View(net.data.autumn)
+net.data.summer <- read.delim("Mill.data.summer.txt", sep=",", row.names = 1)
+net.data.winter <- read.delim("Mill.data.winter.txt", sep=",", row.names = 1)
+#this works
+
+
+#species_age_sex
+load("species_age_sex.RDA") #load doesn't work
+View(species_age_sex)
+save(species_age_sex.RDA, file="species_age_sex.RDA") #does nothing
+load("data/species_age_sex.RDA")#what if I change working directory? --> doesn't change anything
+#finally works when downloading it from GitHub:
+head(species_age_sex)
+
+#order data
+load("gmm.autumn.RData")
+head(gmm.autumn) #works
+load("gmm.summer.RData")
+head(gmm.summer) #works
+load("gmm.winter.RData")
+head(gmm.winter) #works
+load("net.data.summer.w.order.RData")
+head(net.data.summer.w.order) #doesn't work
+load("net.data.autumn.w.order.RData")
+head(net.data.autumn.w.order) #doesn't work
+load("net.data.winter.w.order.RData")
+head(net.data.winter.w.order) #doesn't work
+
+
+#load doesn't work for the net.data."season".w.order
+#Tried to download them straight from Github --> doesn't work either
+#Tried to click on them to open them from the files window in rstudio --> doesn't work either
+#Also tried restarting R but doesn't change anything
 
 
 
