@@ -2678,7 +2678,7 @@ net.data.winter <- read.delim("Mill.data.winter.txt", sep=",", row.names = 1)
 
 
 #species_age_sex
-load("species_age_sex.RDA") #load doesn't work
+load("data/species_age_sex.RDA") #load doesn't work
 View(species_age_sex)
 save(species_age_sex.RDA, file="species_age_sex.RDA") #does nothing
 load("data/species_age_sex.RDA")#what if I change working directory? --> doesn't change anything
@@ -2692,7 +2692,7 @@ load("gmm.summer.RData")
 head(gmm.summer) #works
 load("gmm.winter.RData")
 head(gmm.winter) #works
-load("net.data.summer.w.order.RData")
+load("data/net.data.summer.w.order.RData")
 head(net.data.summer.w.order) #doesn't work
 load("net.data.autumn.w.order.RData")
 head(net.data.autumn.w.order) #doesn't work
@@ -2706,7 +2706,11 @@ head(net.data.winter.w.order) #doesn't work
 #Also tried restarting R but doesn't change anything
 
 
-
+# SW: I just tried with load and it works perfectly fine for me... which makes me think it's one of two things. 
+# 1) Can you double check the folder 'data' is physically within your github project folder (the one you called 'Great-Tits')?
+# 2) Can you try to use the full path instead of the /data shortcut? E.g. 
+load("C:/Users/sonja/Desktop/Ground Squirrels/Student projects/Emilie Zimmer/git/Great-Tits/data/net.data.autumn.w.order.RData")
+# it must have something to do with how the path is specified. I have no other explanation...
 
 
 
