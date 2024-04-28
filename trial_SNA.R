@@ -2693,24 +2693,25 @@ head(gmm.summer) #works
 load("gmm.winter.RData")
 head(gmm.winter) #works
 load("data/net.data.summer.w.order.RData")
-head(net.data.summer.w.order) #doesn't work
+bd <- load("C:/Documents d'Emilie/Sonja Wild/R code/Great-Tits/data/net.data.summer.w.order.RData")
+bd # it says "net.data.summer" --> the name is no longer net.data.summer.w.order
+head(net.data.summer) 
 load("net.data.autumn.w.order.RData")
-head(net.data.autumn.w.order) #doesn't work
+bload("C:/Documents d'Emilie/Sonja Wild/R code/Great-Tits/data/net.data.autumn.w.order.RData")
+head(net.data.autumn)
 load("net.data.winter.w.order.RData")
-head(net.data.winter.w.order) #doesn't work
+load("C:/Documents d'Emilie/Sonja Wild/R code/Great-Tits/data/net.data.winter.w.order.RData")
+head(net.data.winter) 
 
 
-#load doesn't work for the net.data."season".w.order
-#Tried to download them straight from Github --> doesn't work either
-#Tried to click on them to open them from the files window in rstudio --> doesn't work either
-#Also tried restarting R but doesn't change anything
 
 
-# SW: I just tried with load and it works perfectly fine for me... which makes me think it's one of two things. 
-# 1) Can you double check the folder 'data' is physically within your github project folder (the one you called 'Great-Tits')?
-# 2) Can you try to use the full path instead of the /data shortcut? E.g. 
-load("C:/Users/sonja/Desktop/Ground Squirrels/Student projects/Emilie Zimmer/git/Great-Tits/data/net.data.autumn.w.order.RData")
-# it must have something to do with how the path is specified. I have no other explanation...
+
+
+
+
+
+
 
 
 
