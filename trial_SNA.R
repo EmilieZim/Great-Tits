@@ -2703,7 +2703,7 @@ load("net.data.winter.w.order.RData")
 load("C:/Documents d'Emilie/Sonja Wild/R code/Great-Tits/data/net.data.winter.w.order.RData")
 head(net.data.winter) 
 
-
+#--> it now has the same name as the read.delim. Weird but I assume it is working
 
 
 
