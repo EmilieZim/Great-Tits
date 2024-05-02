@@ -2703,8 +2703,164 @@ load("net.data.winter.w.order.RData")
 load("C:/Documents d'Emilie/Sonja Wild/R code/Great-Tits/data/net.data.winter.w.order.RData")
 head(net.data.winter) 
 
-#--> it now has the same name as the read.delim. Weird but I assume it is working
 
+library(rptR)
+library(lmerTest)
+library(lme4)
+library(dplyr)
+library(brms)
+library(car)
+
+#2. And could the order of arrival be predicted by age class (first year/adult) and species? 
+#2.1 And are these orders repeatble?
+head(species_age_sex)
+species_age_sex$age_in_2020 <- as.factor(species_age_sex$age_in_2020)
+str(species_age_sex$age_in_2020)
+species_age_sex$species <- as.factor(species_age_sex$age_in_2020)
+
+#make a dataframe 
+#summer
+sp_class <- merge(net.data.summer, species_age_sex, by.x= "PIT")
+head(sp_class)
+dim(sp_class)
+str(sp_class$species)
+sp_class$species <- as.factor(sp_class$species)
+sp_class$age_in_2020 <- as.factor(sp_class$age_in_2020)
+#I see that there is "already.present" in order
+#   --> this can be transformed in 0 so that my response variable consists of number and so I can use Poisson
+sp_class$order[sp_class$order == "already.present"] <- 0
+head(sp_class)
+str(sp_class$order)
+sp_class$order <- as.numeric(sp_class$order)
+#apparently more than just great tits --> so I can use species
+
+glm.summer <- glmer(order ~ species * age_in_2020 + (1|PIT), family=poisson, data= sp_class)
+summary(glm.summer)#species and age have a significant effect, also model failed to converge
+drop1(glm.summer, test="Chisq")
+Anova(glm.summer)##drop1 and ANOVA show no significant interaction between species and age
+m.class <-  brm(order ~  species * age_in_2020 + (1|PIT) , family=poisson, data= sp_class)
+#to heavy to for my computer to run this
+summary(m.class)
+pp_check(m.class)
+library(tidybayes)
+post.m.class <- m.class %>% spread_draws(sd_Tag__Intercept, b_Intercept)
+R_order <- (post.m.class$sd_Tag__Intercept^2)/((post.m.class$sd_Tag__Intercept^2) + (post.m.class$b_Intercept^2))
+mean(R_order)
+rpt(order ~ species + age_in_2020 + (1|PIT),  data=sp_class,  grname="PIT", nboot=1000, npermut=0, datatype = "Poisson")
+##all of this is too heavy for my computer
+
+#Here I try ore simple models so that my computer can run it
+glm.summer2 <- glmer(order ~ species + age_in_2020 + (1|PIT), family=poisson, data= sp_class)
+summary(glm.summer2)
+#Greti and Nutha are the species that have a significant effect on the order of arrival, as well as juveniles
+rpt(order ~ species + age_in_2020 + (1|PIT),  data=sp_class,  grname="PIT", nboot=100, npermut=0, datatype = "Poisson")
+#still to heavy, my computer does not run this, so I made it more simple:
+rpt(order ~ 1+ (1|PIT),  data=sp_class,  grname="PIT", nboot=100, npermut=0, datatype = "Poisson")
+#still too heavy, I think it is because of the dataset that is quite large
+
+#autumn
+sp_class_aut <- merge(net.data.autumn, species_age_sex, by.x= "PIT")
+head(sp_class_aut)
+str(sp_class_aut$species)
+sp_class_aut$species <- as.factor(sp_class_aut$species)
+sp_class_aut$age_in_2020 <- as.factor(sp_class_aut$age_in_2020)
+sp_class_aut$order[sp_class_aut$order == "already.present"] <- 0
+head(sp_class_aut)
+str(sp_class$order)
+sp_class_aut$order <- as.numeric(sp_class_aut$order)
+
+glm.aut <- glmer(order ~ species * age_in_2020 + (1|PIT), family=poisson, data= sp_class_aut)#failed to converge, to I leave out the interaction
+glm.aut <- glmer(order ~ species + age_in_2020 + (1|PIT), family=poisson, data= sp_class_aut)
+summary(glm.aut)#the species marti and nutha have a significant effect on the order of arrival
+
+m.class_aut <-  brm(order ~  species * age_in_2020 + (1|PIT) , family=poisson, data= sp_class_aut)
+#to heavy to for my computer to run this
+summary(m.class)
+pp_check(m.class)
+library(tidybayes)
+post.m.class.aut <- m.class.aut %>% spread_draws(sd_Tag__Intercept, b_Intercept)
+R_order.aut <- (post.m.class.aut$sd_Tag__Intercept^2)/((post.m.class.aut$sd_Tag__Intercept^2) + (post.m.class.aut$b_Intercept^2))
+mean(R_order.aut)
+rpt(order ~ species + age_in_2020 + (1|PIT),  data=sp_class_aut,  grname="PIT", nboot=1000, npermut=0, datatype = "Poisson")
+#took 40 min to run
+##Link-scale approximation:
+#R  = 0.226
+#SE = 0.041
+#CI = [0.143, 0.297]
+#P  = 4.13e-31 [LRT]
+#NA [Permutation]
+
+#Original-scale approximation:
+#R  = 0.21
+#SE = 0.039
+#CI = [0.131, 0.278]
+#P  = 4.13e-31 [LRT]
+#NA [Permutation]
+
+
+#Here I try ore simple models so that my computer can run it
+glm.summer2 <- glmer(order ~ species + age_in_2020 + (1|PIT), family=poisson, data= sp_class)
+summary(glm.summer2)
+#Greti and Nutha are the species that have a significant effect on the order of arrival, as well as juveniles
+rpt(order ~ species + age_in_2020 + (1|PIT),  data=sp_class,  grname="PIT", nboot=100, npermut=0, datatype = "Poisson")
+#still to heavy, my computer does not run this, so I made it more simple:
+
+#winter
+sp_class_wint <- merge(net.data.winter, species_age_sex, by.x= "PIT")
+head(sp_class_wint)
+str(sp_class_aut$species)
+sp_class_wint$species <- as.factor(sp_class_wint$species)
+sp_class_wint$age_in_2020 <- as.factor(sp_class_wint$age_in_2020)
+sp_class_wint$order[sp_class_wint$order == "already.present"] <- 0
+head(sp_class_wint)
+str(sp_class_wint$order)
+sp_class_wint$order <- as.numeric(sp_class_wint$order)
+
+glm.wint <- glmer(order ~ species * age_in_2020 + (1|PIT), family=poisson, data= sp_class_wint)#failed to converge, to I leave out the interaction
+summary(glm.wint)
+drop1(glm.wint, test="Chisq") #the interaction is not significant, hec eI leave it ou of the model
+glm.wint <- glmer(order ~ species + age_in_2020 + (1|PIT), family=poisson, data= sp_class_wint)
+summary(glm.wint)#species Marti and Nutha have a significant effect. The age here has no effect 
+
+rpt(order ~ species + age_in_2020 + (1|PIT),  data=sp_class_wint,  grname="PIT", nboot=1000, npermut=0, datatype = "Poisson")
+#took 2h30 to process
+#Link-scale approximation:
+#R  = 0.206
+#SE = 0.021
+#CI = [0.16, 0.242]
+#P  = 1.63e-113 [LRT]
+#NA [Permutation]
+
+#Original-scale approximation:
+#R  = 0.138
+#SE = 0.014
+#CI = [0.107, 0.162]
+#P  = 1.63e-113 [LRT]
+#NA [Permutation]
+
+#Continue from here:
+
+
+##2.3 Maybe interesting to see whether across seasons, the order is still repeatable.
+#For this make one dataset with all seasons together
+
+#3. and for juveniles, could the order be predicted by the fledge order?
+#make a dataset with fd and net.data.summer (fd only takes into account summer data)
+
+###I believe it should be a Poisson model as order can be considered as a count
+glm.order.Chick <- glmer(order ~ fledge.order.scaled.within*scale(Chick.weight) + fledge.order.scaled.within*scale(age) +scale(Chick.weight)*scale(age) + (1|Tag), family=poisson, data=chicks.data.summer)
+summary(glm.order.Chick)
+glm.order.Chick <- glmer(order ~fledge.order.scaled.within + scale(Chick.weight) +scale(age) + (1|Tag), family=poisson, data=chicks.data.summer)
+summary(glm.order.Chick)#no explanatory variable has a significant effect on order
+#check for multicollinearity with a matrix
+cor_matrix <- cor(chicks.data.summer[, c("fledge.order.scaled.within", "Chick.weight", "age")])
+print(cor_matrix)
+corrplot::corrplot(cor_matrix, method = "circle")
+#the weight and the fledge order seem correlated
+glm.order.Chick <- glmer(order ~fledge.order.scaled.within + (1|Tag), family=poisson, data=chicks.data.summer)
+summary(glm.order.Chick)
+#no effect of fledge order on the order of arrival at the feeders
+rpt(order ~ (1|Tag), grname ="Tag", datatype="Poisson", data=chicks.data.summer, CI = 0.95, nboot = 100, npermut = 0)
 
 
 
