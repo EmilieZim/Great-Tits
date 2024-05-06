@@ -2818,7 +2818,7 @@ sp_class_wint$order <- as.numeric(sp_class_wint$order)
 
 glm.wint <- glmer(order ~ species * age_in_2020 + (1|PIT), family=poisson, data= sp_class_wint)#failed to converge, to I leave out the interaction
 summary(glm.wint)
-drop1(glm.wint, test="Chisq") #the interaction is not significant, hec eI leave it ou of the model
+drop1(glm.wint, test="Chisq") #the interaction is not significant, hence I leave it out of the model
 glm.wint <- glmer(order ~ species + age_in_2020 + (1|PIT), family=poisson, data= sp_class_wint)
 summary(glm.wint)#species Marti and Nutha have a significant effect. The age here has no effect 
 
@@ -2843,24 +2843,67 @@ rpt(order ~ species + age_in_2020 + (1|PIT),  data=sp_class_wint,  grname="PIT",
 
 ##2.3 Maybe interesting to see whether across seasons, the order is still repeatable.
 #For this make one dataset with all seasons together
+library(dplyr)
+sp_class$season <- "summer"
+head(sp_class)
+sp_class_aut$season <- "autumn"
+sp_class_wint$season <- "winter"
+sp_class_season<- rbind(sp_class, sp_class_aut, sp_class_wint)
+View(sp_class_season)
+sp_class_season$species <- as.factor(sp_class_season$species)
+sp_class_season$seasons <- as.factor(sp_class_season$season)
+sp_class_season$age_in_2020 <- as.factor(sp_class_season$age_in_2020)
+sp_class_season$order[sp_class_season$order == "already.present"] <- 0
+sp_class_season$order <- as.numeric(sp_class_season$order)
+
+glm.season <- glmer(order ~ species + age_in_2020+ season + (1|PIT), family=poisson, data= sp_class_season)#without interaction so that my computer can run it
+summary(glm.season)
+#Fixed effects:
+#                     Estimate    Std. Error  z value Pr(>|z|)    
+#(Intercept)          1.766577   0.063548   27.799  < 2e-16 ***
+#  speciesGRETI        -0.192698   0.073876   -2.608 0.009096 ** 
+#  speciesMARTI        -0.639502   0.167587   -3.816 0.000136 ***
+#  speciesNUTHA        -0.634073   0.113917   -5.566  2.6e-08 ***
+#  age_in_2020juvenile -0.004274   0.067025   -0.064 0.949151    
+#seasonsummer        -3.454063   0.015358 -224.908  < 2e-16 ***
+#  seasonwinter         1.008148   0.014449   69.772  < 2e-16 ***
+
+rpt(order ~ species + age_in_2020+ season + (1|PIT),  data=sp_class_season,  grname="PIT", nboot=1000, npermut=0, datatype = "Poisson")
+#to heavy for my computer
+
+#taking into account the interactions
+glm.season2 <- glmer(order ~ species*age_in_2020 + species*season + age_in_2020*season + (1|PIT), family=poisson, data= sp_class_season)#without interaction so that my computer can run it
+summary(glm.season2)
+#to heavy for my computer
+
+#just with one interaction (seems interesting to know whether the adults/juveniles change their order of arrival depending on the season, especially the juveniles)
+glm.season3 <- glmer(order ~ species +  age_in_2020*season + (1|PIT), family=poisson, data= sp_class_season)#without interaction so that my computer can run it
+drop1(glm.season3, test="Chisq")#interaction is significant
+summary(glm.season3)
+#Fixed effects:
+#                                   Estimate Std. Error  z value Pr(>|z|)    
+#(Intercept)                       1.72956    0.05452   31.724  < 2e-16 ***
+ # speciesGRETI                     -0.17860    0.07416   -2.408 0.016025 *  
+ #speciesMARTI                     -0.62172    0.18437   -3.372 0.000746 ***
+ # speciesNUTHA                     -0.67879    0.07134   -9.515  < 2e-16 ***
+ # age_in_2020juvenile               0.07305    0.07829    0.933 0.350812    
+ #seasonsummer                     -3.27717    0.01977 -165.796  < 2e-16 ***
+ # seasonwinter                      0.95319    0.01830   52.094  < 2e-16 ***
+ #age_in_2020juvenile:seasonsummer -0.37275    0.03104  -12.007  < 2e-16 ***
+ #age_in_2020juvenile:seasonwinter  0.12876    0.02923    4.404 1.06e-05 ***
 
 #3. and for juveniles, could the order be predicted by the fledge order?
 #make a dataset with fd and net.data.summer (fd only takes into account summer data)
+head(fd)
+head(net.data.summer)
+fd$PIT <- fd$Tag
+order_fd <- merge(net.data.summer, fd, by.x= "PIT")
+head(order_fd)
+order_fd$order[order_fd$order == "already.present"] <- 0
+order_fd$order <- as.numeric(order_fd$order)
 
-###I believe it should be a Poisson model as order can be considered as a count
-glm.order.Chick <- glmer(order ~ fledge.order.scaled.within*scale(Chick.weight) + fledge.order.scaled.within*scale(age) +scale(Chick.weight)*scale(age) + (1|Tag), family=poisson, data=chicks.data.summer)
-summary(glm.order.Chick)
-glm.order.Chick <- glmer(order ~fledge.order.scaled.within + scale(Chick.weight) +scale(age) + (1|Tag), family=poisson, data=chicks.data.summer)
-summary(glm.order.Chick)#no explanatory variable has a significant effect on order
-#check for multicollinearity with a matrix
-cor_matrix <- cor(chicks.data.summer[, c("fledge.order.scaled.within", "Chick.weight", "age")])
-print(cor_matrix)
-corrplot::corrplot(cor_matrix, method = "circle")
-#the weight and the fledge order seem correlated
-glm.order.Chick <- glmer(order ~fledge.order.scaled.within + (1|Tag), family=poisson, data=chicks.data.summer)
-summary(glm.order.Chick)
-#no effect of fledge order on the order of arrival at the feeders
-rpt(order ~ (1|Tag), grname ="Tag", datatype="Poisson", data=chicks.data.summer, CI = 0.95, nboot = 100, npermut = 0)
+glm.order <- glmer(order ~ fledge.order.scaled.within  + (1|PIT), family=poisson, data=order_fd)
+summary(glm.order)#the fledge order has no effect on the order of arrival to the feeders
 
 
 
