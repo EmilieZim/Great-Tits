@@ -2670,10 +2670,10 @@ ggplot(full.data.summer) + aes(x = Class, y = order) +
 
 ######order of arrival to feeders with more precise age classes and species
 #data
-net.data.autumn <- read.delim("Mill.data.autumn.txt", sep=",", row.names = 1)
+net.data.autumn <- read.delim("data/Mill.data.autumn.txt", sep=",", row.names = 1)
 View(net.data.autumn)
-net.data.summer <- read.delim("Mill.data.summer.txt", sep=",", row.names = 1)
-net.data.winter <- read.delim("Mill.data.winter.txt", sep=",", row.names = 1)
+net.data.summer <- read.delim("data/Mill.data.summer.txt", sep=",", row.names = 1)
+net.data.winter <- read.delim("data/Mill.data.winter.txt", sep=",", row.names = 1)
 #this works
 
 
@@ -2686,20 +2686,22 @@ load("data/species_age_sex.RDA")#what if I change working directory? --> doesn't
 head(species_age_sex)
 
 #order data
-load("gmm.autumn.RData")
+load("data/gmm.autumn.RData")
 head(gmm.autumn) #works
-load("gmm.summer.RData")
+load("data/gmm.summer.RData")
 head(gmm.summer) #works
-load("gmm.winter.RData")
+load("data/gmm.winter.RData")
 head(gmm.winter) #works
 load("data/net.data.summer.w.order.RData")
 bd <- load("C:/Documents d'Emilie/Sonja Wild/R code/Great-Tits/data/net.data.summer.w.order.RData")
 bd # it says "net.data.summer" --> the name is no longer net.data.summer.w.order
+# SW: ah yes, that is very possible. It'll have the name of the object I originally named, not the file name.
+
 head(net.data.summer) 
-load("net.data.autumn.w.order.RData")
+load("data/net.data.autumn.w.order.RData")
 bload("C:/Documents d'Emilie/Sonja Wild/R code/Great-Tits/data/net.data.autumn.w.order.RData")
 head(net.data.autumn)
-load("net.data.winter.w.order.RData")
+load("data/net.data.winter.w.order.RData")
 load("C:/Documents d'Emilie/Sonja Wild/R code/Great-Tits/data/net.data.winter.w.order.RData")
 head(net.data.winter) 
 
@@ -2716,7 +2718,7 @@ library(car)
 head(species_age_sex)
 species_age_sex$age_in_2020 <- as.factor(species_age_sex$age_in_2020)
 str(species_age_sex$age_in_2020)
-species_age_sex$species <- as.factor(species_age_sex$age_in_2020)
+species_age_sex$species <- as.factor(species_age_sex$species)
 
 #make a dataframe 
 #summer
@@ -2728,17 +2730,33 @@ sp_class$species <- as.factor(sp_class$species)
 sp_class$age_in_2020 <- as.factor(sp_class$age_in_2020)
 #I see that there is "already.present" in order
 #   --> this can be transformed in 0 so that my response variable consists of number and so I can use Poisson
+
+# SW: the 'already present' should actually not even be in this data set! I had a line earlier that should have removed those
+# cause it's just the same bird in the same group that has already arrived and has already been given an arrival order
+
 sp_class$order[sp_class$order == "already.present"] <- 0
+
+# SW: I kicked it out here:
+sp_class <- subset(sp_class, sp_class$order!=0)
+
 head(sp_class)
 str(sp_class$order)
 sp_class$order <- as.numeric(sp_class$order)
 #apparently more than just great tits --> so I can use species
 
+# SW: You can kick out the COATI and GREFI - COATI are so few and GREFI is most likely a mistake.
+sp_class <- subset(sp_class, sp_class$species %in% c("BLUTI", "GRETI", "MARTI", "NUTHA"))
+
+# SW: I'm saving the image here again so I can pick up here next time:
+save.image(file="R.image2.RData")
+load("R.image2.RData")
+
+
 glm.summer <- glmer(order ~ species * age_in_2020 + (1|PIT), family=poisson, data= sp_class)
 summary(glm.summer)#species and age have a significant effect, also model failed to converge
 drop1(glm.summer, test="Chisq")
 Anova(glm.summer)##drop1 and ANOVA show no significant interaction between species and age
-m.class <-  brm(order ~  species * age_in_2020 + (1|PIT) , family=poisson, data= sp_class)
+m.class <-  brms::brm(order ~  species * age_in_2020 + (1|PIT) , family=poisson, data= sp_class)
 #to heavy to for my computer to run this
 summary(m.class)
 pp_check(m.class)
