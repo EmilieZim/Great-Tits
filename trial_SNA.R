@@ -2734,7 +2734,7 @@ sp_class$age_in_2020 <- as.factor(sp_class$age_in_2020)
 # SW: the 'already present' should actually not even be in this data set! I had a line earlier that should have removed those
 # cause it's just the same bird in the same group that has already arrived and has already been given an arrival order
 
-#sp_class$order[sp_class$order == "already.present"] <- 0
+sp_class$order[sp_class$order == "already.present"] <- 0
 
 # SW: I kicked it out here:
 sp_class <- subset(sp_class, sp_class$order!=0)
@@ -2778,19 +2778,61 @@ mean(R_order)
 rpt(order ~ species * age_in_2020 + (1|PIT),  data=sp_class,  grname="PIT", nboot=100, npermut=0, datatype = "Poisson")
 #to heavy for my computer
 
+#taking into account the differences in flock size
+#by using weights
+head(sp_class)
+sp_class <- sp_class %>%
+  group_by(group) %>%
+  mutate(weight = 1 / n())
+
+glm.summer.flock <- glmer(order ~ species * age_in_2020 + (1|PIT), family=poisson, weights= weight, data= sp_class)
+#fixed-effect model matrix is rank deficient so dropping 1 column / coefficient  and boundary(singular) fit
+summary(glm.summer.flock)
+#Fixed effects:
+#                                   Estimate Std. Error z value Pr(>|z|)    
+#(Intercept)                       0.55763    0.08444   6.604   4e-11 ***
+#speciesGRETI                     -0.07495    0.08961  -0.836   0.4029    
+#speciesMARTI                     -0.25030    0.11709  -2.138   0.0325 *  
+#speciesNUTHA                     -0.06500    0.12039  -0.540   0.5892    
+#age_in_2020juvenile              -0.27845    0.31197  -0.893   0.3721    
+#speciesGRETI:age_in_2020juvenile  0.48392    0.31457   1.538   0.1240    
+#speciesMARTI:age_in_2020juvenile  1.34231    0.90428   1.484   0.1377  
+
+#Try with another weights and make proportion of order:
+head(sp_class)
+View(sp_class)
+sp_class <- sp_class %>%
+  group_by(group) %>%
+  mutate(Tot =n())
+
+sp_class <- sp_class %>%
+  mutate(OrderProp = order/Tot)
+
+glm.summer.flock <- glmer(OrderProp ~ species * age_in_2020 + (1|PIT), family=poisson, weights= Tot, data= sp_class)
+#fixed-effect model matrix is rank deficient so dropping 1 column / coefficient
+summary(glm.summer.flock)
+##too heavy for my computer
+
+#try without the interaction
+glm.summer.flock <- glmer(OrderProp ~ species + age_in_2020 + (1|PIT), family=poisson, weights= Tot, data= sp_class)
+#still too heavy
+
+
+
 #autumn
 sp_class_aut <- merge(net.data.autumn, species_age_sex, by.x= "PIT")
 head(sp_class_aut)
 str(sp_class_aut$species)
 sp_class_aut$species <- as.factor(sp_class_aut$species)
 sp_class_aut$age_in_2020 <- as.factor(sp_class_aut$age_in_2020)
+sp_class_aut$order[sp_class_aut$order == "already.present"] <- 0
 sp_class_aut <- subset(sp_class_aut, sp_class_aut$order!=0)
 sp_class_aut <- subset(sp_class_aut, sp_class_aut$species %in% c("BLUTI", "GRETI", "MARTI", "NUTHA"))
 head(sp_class_aut)
 str(sp_class$order)
 sp_class_aut$order <- as.numeric(sp_class_aut$order)
 
-glm.aut <- glmer(order ~ species * age_in_2020 + (1|PIT), family=poisson, data= sp_class_aut)
+glm.aut <- glmer(order ~ species * age_in_2020 + (1|PIT), family=poisson, data= sp_class_aut)#model failed to converge
 drop1(glm.aut, test="Chisq")#intercation is non significant
 glm.aut <- glmer(order ~ species + age_in_2020 + (1|PIT), family=poisson, data= sp_class_aut)
 summary(glm.aut)
@@ -2822,11 +2864,32 @@ summary(glm.summer2)
 rpt(order ~ species + age_in_2020 + (1|PIT),  data=sp_class,  grname="PIT", nboot=100, npermut=0, datatype = "Poisson")
 #still to heavy, my computer does not run this
 
+
+#when taking into account the flock size, by using weights
+head(sp_class_aut)
+sp_class_aut <- sp_class_aut %>%
+  group_by(group) %>%
+  mutate(weight = 1 / n())
+
+glm.aut.flock <- glmer(order ~ species * age_in_2020 + (1|PIT), family=poisson, weights= weight, data= sp_class_aut)
+#model failed to converge
+drop1(glm.aut.flock, test="Chisq")#interaction not significant
+glm.aut.flock <- glmer(order ~ species + age_in_2020 + (1|PIT), family=poisson, weights= weight, data= sp_class_aut)
+summary(glm.aut.flock)
+#Fixed effects:
+#                     Estimate   Std. Error z value Pr(>|z|)    
+#(Intercept)          1.21753    0.11731  10.379  < 2e-16 ***
+#speciesGRETI        -0.02780    0.13758  -0.202 0.839882    
+#speciesMARTI        -0.50402    0.15672  -3.216 0.001300 ** 
+#speciesNUTHA        -0.71010    0.20755  -3.421 0.000623 ***
+#age_in_2020juvenile  0.08903    0.10905   0.816 0.414267    
+
 #winter
 sp_class_wint <- merge(net.data.winter, species_age_sex, by.x= "PIT")
 head(sp_class_wint)
 sp_class_wint$species <- as.factor(sp_class_wint$species)
 sp_class_wint$age_in_2020 <- as.factor(sp_class_wint$age_in_2020)
+sp_class_wint$order[sp_class_wint$order == "already.present"] <- 0
 sp_class_wint <- subset(sp_class_wint, sp_class_wint$order!=0)
 sp_class_wint <- subset(sp_class_wint, sp_class_wint$species %in% c("BLUTI", "GRETI", "MARTI", "NUTHA"))
 head(sp_class_wint)
@@ -2849,6 +2912,27 @@ summary(glm.wint)
 rpt(order ~ species + age_in_2020 + (1|PIT),  data=sp_class_wint,  grname="PIT", nboot=1000, npermut=0, datatype = "Poisson")
 #too heavy for my computer
 
+#when taking into account the flock size, by using weights
+head(sp_class_wint)
+sp_class_wint <- sp_class_wint %>%
+  group_by(group) %>%
+  mutate(weight = 1 / n())
+
+glm.wint.flock <- glmer(order ~ species * age_in_2020 + (1|PIT), family=poisson, weights= weight, data= sp_class_wint)
+drop1(glm.wint.flock, test="Chisq")#interaction not significant
+glm.wint.flock <- glmer(order ~ species + age_in_2020 + (1|PIT), family=poisson, weights= weight, data= sp_class_wint)
+summary(glm.wint.flock)
+#Fixed effects:
+#                    Estimate Std. Error z value Pr(>|z|)    
+#(Intercept)          2.24241    0.08456  26.518  < 2e-16 ***
+#speciesGRETI        -0.08523    0.09520  -0.895 0.370638    
+#speciesMARTI        -0.99429    0.15957  -6.231 4.63e-10 ***
+#speciesNUTHA        -0.79769    0.22410  -3.559 0.000372 ***
+#age_in_2020juvenile  0.09071    0.08416   1.078 0.281138    
+
+rpt(order ~ species + age_in_2020 + (1|PIT),  data=sp_class_wint,  grname="PIT", nboot=1000, npermut=0, datatype = "Poisson")
+
+
 
 ##2.3 Maybe interesting to see whether across seasons, the order is still repeatable.
 #For this make one dataset with all seasons together
@@ -2863,6 +2947,7 @@ sp_class_season$species <- as.factor(sp_class_season$species)
 sp_class_season$seasons <- as.factor(sp_class_season$season)
 sp_class_season$age_in_2020 <- as.factor(sp_class_season$age_in_2020)
 sp_class_season$order <- as.numeric(sp_class_season$order)
+sp_class_wint$order[sp_class_wint$order == "already.present"] <- 0
 sp_class_season <- subset(sp_class_season, sp_class_season$order!=0)
 sp_class_season <- subset(sp_class_season, sp_class_season$species %in% c("BLUTI", "GRETI", "MARTI", "NUTHA"))
 
@@ -2903,6 +2988,43 @@ summary(glm.season3)
 #age_in_2020juvenile:seasonsummer  0.13274    0.03115   4.261 2.03e-05 ***
 #age_in_2020juvenile:seasonwinter  0.07748    0.02995   2.587  0.00967 ** 
 
+
+#considering weights
+
+head(sp_class_season)
+sp_class_season <- sp_class_season %>%
+  group_by(group) %>%
+  mutate(weight = 1 / n())
+
+#without the interaction so it would be easier to run
+glm.season4 <- glmer(order ~ species +  age_in_2020 + season + (1|PIT), family=poisson, weights= weight, data= sp_class_season)
+summary(glm.season4)
+#Fixed effects:
+#Estimate Std. Error z value Pr(>|z|)    
+#(Intercept)          1.45845    0.07313  19.942  < 2e-16 ***
+#speciesGRETI        -0.20805    0.05754  -3.616 0.000299 ***
+#speciesMARTI        -0.62370    0.08921  -6.992 2.72e-12 ***
+#speciesNUTHA        -0.44304    0.10099  -4.387 1.15e-05 ***
+#age_in_2020juvenile  0.15811    0.03972   3.981 6.87e-05 ***
+#seasonsummer        -0.68999    0.05419 -12.732  < 2e-16 ***
+#seasonwinter         0.78461    0.05729  13.694  < 2e-16 ***
+
+#Maybe when running rpt, I should use the proportions of order (as done above) so that I can include the flock size. Cannot use weight in rpt
+sp_class_season <- sp_class_season %>%
+  group_by(group) %>%
+  mutate(Tot =n())
+
+sp_class_season <- sp_class_season %>%
+  mutate(OrderProp = order/Tot)
+View(sp_class_season)
+
+glm.season4 <- glmer(OrderProp ~ species +  age_in_2020 + season + (1|PIT), family=poisson, weights= Tot, data= sp_class_season)
+#too heavy for my computer :/
+
+rpt(OrderProp ~ species + age_in_2020+ season + (1|PIT),  data=sp_class_season,  grname="PIT", nboot=1000, npermut=0, datatype = "Poisson")
+#too heavy for my computer
+
+
 #3. and for juveniles, could the order be predicted by the fledge order?
 #make a dataset with fd and net.data.summer (fd only takes into account summer data)
 head(fd)
@@ -2910,15 +3032,22 @@ head(net.data.summer)
 fd$PIT <- fd$Tag
 order_fd <- merge(net.data.summer, fd, by.x= "PIT")
 head(order_fd)
-sp_class_season <- subset(sp_class_season, sp_class_season$order!=0)
+order_fd$order[order_fd$order == "already.present"] <- 0
+order_fd <- subset(order_fd, order_fd$order!=0)
 order_fd$order <- as.numeric(order_fd$order)
 
 glm.order <- glmer(order ~ fledge.order.scaled.within  + (1|PIT), family=poisson, data=order_fd)
 summary(glm.order)#the fledge order has no effect on the order of arrival to the feeders
 
+#considering weights
+head(order_fd)
+View(order_fd)
+order_fd <- order_fd %>%
+  group_by(group) %>%
+  mutate(weight = 1 / n())
 
-
-
+glm.order2 <- glmer(order ~ fledge.order.scaled.within  + (1|PIT), family=poisson, weights= weight, data=order_fd)
+summary(glm.order2)#not significant
 
 
 
