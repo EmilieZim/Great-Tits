@@ -69,7 +69,7 @@ View(gmm.summer)
 #1.
 #add week column to gbi
 #For that, has to put week column into metadata 
-
+metadata <- gmm.summer$metadata
 #transform Start column into a date
 head(metadata)
 metadata$Date <- as.POSIXct(as.character(metadata$Start), format = "%y%m%d%H%M%S")
@@ -112,6 +112,7 @@ str(metadata$week)#14 weeks
 
 ###week1
 which(metadata$week == 1)#from row 1 to 138
+gbi <- gmm.summer$gbi
 gbi1 <- gbi[1:138,]
 threshold <- 5 #treshold to individuals that have been seen at least 5 times
 gbi1.sub <- gbi1[,colSums(gbi1)>=threshold]
@@ -123,7 +124,7 @@ library(asnipe)
 network_week1 <- get_network(gbi1.sub, data_format="GBI",
                              association_index="SRI")
 
-
+library(igraph)
 net1 <- graph_from_adjacency_matrix(network_week1,mode= c("undirected"), diag=FALSE, weighted=TRUE)
 net1_deg <- degree(net1)
 
@@ -603,7 +604,7 @@ fd$scaled_FledgeOrder2 <- datawizard::normalize(fd$Fledge.order, method = "range
 View(fd)
 fd_withoutNA <- na.omit(fd) #keeps only the observations with fledge.order > 2
 View(fd_withoutNA)
-plot(fd_withoutNA$scaled_FledgeOrder2, fd_withoutNA_2$fledge.order.scaled.within)
+plot(fd_withoutNA$scaled_FledgeOrder2, fd_withoutNA$fledge.order.scaled.within)
 
 # all first fledgers now have a value of 0, all last fledgers a value of 1 (thx to datawizard::normalize)
 # I have excluded those where only one chick fledged with if(length(tags.box.chicks$Box)==1){
@@ -695,26 +696,29 @@ str(new_data$factor.order)
 
 #with glmer (more robust against assumption deviations)
 
+
 #degree
-df_glmer0 <- glmer(degree ~ factor.order*scale.age + Chick.weight*factor.order + Chick.weight*scale.age + (1|Tag) + (1|Family:Tag) , data=new_data, family=gaussian)
+df_glmer0 <- glmer(degree ~ factor.order*scale(age) + Chick.weight*factor.order + Chick.weight*scale(age) + (1|Tag) + (1|Family:Tag) , data=new_data, family=gaussian)
 summary(df_glmer0)
+library(car)
 Anova(df_glmer0)
+library(report)
 report(df_glmer0) #the interactions are not significant, hence I leave them out
-df_glmer1 <- glmer(degree ~ factor.order + scale.age + Chick.weight + (1|Tag) + (1|Family:Tag) , data=new_data, family=gaussian)
+df_glmer1 <- glmer(degree ~ factor.order + scale(age) + Chick.weight + (1|Tag) + (1|Family:Tag) , data=new_data, family=gaussian)
 summary(df_glmer1)
 Anova(df_glmer1)
 report(df_glmer1)
 vif(df_glmer1)#no prob with multi-collinearity
 
 #betweenness
-bf_glmer0 <- glmer(betweenness ~ factor.order*scale.age + Chick.weight*factor.order + Chick.weight*scale.age  + (1|Tag)+ (1|Family:Tag) , data=new_data, family=gaussian)
+bf_glmer0 <- glmer(betweenness ~ factor.order*scale(age) + Chick.weight*factor.order + Chick.weight*scale(age)  + (1|Tag)+ (1|Family:Tag) , data=new_data, family=gaussian)
 summary(bf_glmer0)
 Anova(bf_glmer0)
 report(bf_glmer0)
 #I leave out the interactions
-bf_glmer1 <- glmer(betweenness ~ factor.order + scale.age + Chick.weight + (1|Tag)+ (1|Family:Tag) , data=new_data, family=gaussian)
+bf_glmer1 <- glmer(betweenness ~ factor.order + scale(age) + Chick.weight + (1|Tag)+ (1|Family:Tag) , data=new_data, family=gaussian)
 #prob with convergence, so I leave out a random effect
-bf_glmer2 <- glmer(betweenness ~ factor.order + scale.age + Chick.weight + (1|Tag) , data=new_data, family=gaussian)
+bf_glmer2 <- glmer(betweenness ~ factor.order + scale(age) + Chick.weight + (1|Tag) , data=new_data, family=gaussian)
 summary(bf_glmer2)
 Anova(bf_glmer2)
 report(bf_glmer2)
@@ -735,23 +739,23 @@ length(which(new_data$factor.order2=="Last"))
 
 #degree
 new_data$scale.age <- scale(new_data$age)
-d_within <- glmer(degree ~ factor.order2*scale.age + Chick.weight*factor.order2 + Chick.weight*scale.age  + (1|Tag)+ (1|Family:Tag) , data=new_data, family=gaussian)
+d_within <- glmer(degree ~ factor.order2*scale(age) + Chick.weight*factor.order2 + Chick.weight*scale(age)  + (1|Tag)+ (1|Family:Tag) , data=new_data, family=gaussian)
 summary(d_within)
 library(car)
 Anova(d_within)
 library(report)
 report(d_within)
 #Leave out the interactions
-d_within1 <- glmer(degree ~ factor.order2 + scale.age + Chick.weight  + (1|Tag)+ (1|Family:Tag) , data=new_data, family=gaussian)
+d_within1 <- glmer(degree ~ factor.order2 + scale(age) + Chick.weight  + (1|Tag)+ (1|Family:Tag) , data=new_data, family=gaussian)
 #fail to converge --> leave out one random factor
-d_within2 <- glmer(degree ~ factor.order2 + scale.age + Chick.weight  + (1|Tag), data=new_data, family=gaussian)
+d_within2 <- glmer(degree ~ factor.order2 + scale(age) + Chick.weight  + (1|Tag), data=new_data, family=gaussian)
 summary(d_within2)
 vif(d_within2)#no prob
 Anova(d_within2)
 report(d_within2)#nothing is significant
 
 #betweenness
-b_within <- glmer(betweenness ~ factor.order2*scale.age + Chick.weight*factor.order2 + Chick.weight*scale.age  + (1|Tag)+ (1|Family:Tag), data=new_data, family=gaussian)
+b_within <- glmer(betweenness ~ factor.order2*scale(age) + Chick.weight*factor.order2 + Chick.weight*scale(age)  + (1|Tag)+ (1|Family:Tag), data=new_data, family=gaussian)
 summary(b_within)
 Anova(b_within)
 report(b_within)#factor.order2:scale.age is significant
@@ -759,10 +763,10 @@ vif(b_within)#problems of multicollinearity
 #Chick.weight*factor.order2 is almost significant (tendency) with p-val =0.08804 
 #leave out the unsignificant interactions
 
-b_within1 <- glmer(betweenness ~ factor.order2*scale.age + Chick.weight + (1|Tag)+ (1|Family:Tag) , data=new_data, family=gaussian)
+b_within1 <- glmer(betweenness ~ factor.order2*scale(age) + Chick.weight + (1|Tag)+ (1|Family:Tag) , data=new_data, family=gaussian)
 #Model failed to converge, hence I leave out the random factor
 
-b_within2 <- glmer(betweenness ~ factor.order2*scale.age + Chick.weight + (1|Tag) , data=new_data, family=gaussian)
+b_within2 <- glmer(betweenness ~ factor.order2*scale(age) + Chick.weight + (1|Tag) , data=new_data, family=gaussian)
 summary(b_within2)
 Anova(b_within2)
 report(b_within2)#the interaction scale.age:fledge.order2 is no longer significant
@@ -770,7 +774,7 @@ vif(b_within2)
 #scale.age has a high VIF (9.963451)
 #Leave out the interaction as it is no longer significant
 
-b_within3 <- glmer(betweenness ~ factor.order2 + scale.age + Chick.weight + (1|Tag) , data=new_data, family=gaussian)
+b_within3 <- glmer(betweenness ~ factor.order2 + scale(age) + Chick.weight + (1|Tag) , data=new_data, family=gaussian)
 summary(b_within3)
 Anova(b_within3)
 report(b_within3)#the interaction scale.age:fledge.order2 is no longer significant
@@ -807,7 +811,8 @@ permute.networks <- function(gbi, week){
   
   perm <- as.data.frame(as.matrix(cbind(week, perm_deg, perm_betw))) #why convert it into a matrix here?
   perm$Tag <- rownames(perm)
-  rownames(perm) <- NULL#Why setting the rownames of perm here to NULL?
+  rownames(perm) <- NULL#Why setting the rownames of perm here to NULL? 
+  # SW: because the tag is doubled up - once in rownames and once in the column 'Tag'. Now it's just a data frame without extra redundant rownames
   return(perm)
 }
 
@@ -824,7 +829,8 @@ head(perm5)
 # I am only running it on week 4 and 5, but you can add all of the others equivalently
 perm_object <- NULL
 
-for(i in 1:10){
+# SW: changing this to 1000 here
+for(i in 1:1000){
   
   perm5 <- permute.networks(gbi=gbi5.sub, week=5)
   perm6 <- permute.networks(gbi=gbi6.sub, week=6)
