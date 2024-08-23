@@ -239,6 +239,8 @@ load("data/gmm.summer.RData")
 head(gmm.summer)
 load("data/gmm.winter.RData")
 head(gmm.winter) 
+load("C:/Documents d'Emilie/Sonja Wild/R code/Great-Tits/data/gmm.spring.RData")
+head(gmm.spring)
 
 #take the subsets before making the networks
 #subsets for summer
@@ -252,6 +254,10 @@ metadata.aut <- gmm.autumn$metadata
 #subset for winter
 gbi.wint <- gmm.winter$gbi
 metadata.wint<- gmm.winter$metadata
+
+#subset for spring
+gbi.sp <- gmm.spring$gbi
+metadata.sp <- gmm.spring$metadata
 
 #####generate the network/week for each season 
 library(asnipe)
@@ -335,6 +341,26 @@ metadata.wint$week <- as.factor(metadata.wint$week)
 head(metadata.wint)
 View(metadata.wint)
 str(metadata.wint$week)# 3 weeks
+
+
+#SPRING
+head(metadata.sp)#the Starts are not ranked progressively by date 
+min(metadata.sp$Start)#210223 --> first day of data 2021-02-23
+str(metadata.sp$Start)
+metadata.sp <- metadata.sp[order(metadata.sp$Start,decreasing = FALSE), ] #now in chronological order
+head(metadata.sp)
+metadata.sp$date <- substr(metadata.sp$Start , 1, 6)
+str(metadata.sp$date)
+metadata.sp$date <- as.numeric(metadata.sp$date)
+metadata.sp$date <- 20000000 + metadata.sp$date
+metadata.sp$date <- as.character(metadata.sp$date)
+metadata.sp$date <- as.Date(metadata.sp$date, format="%Y%m%d", origin= "20200929")
+week_boundaries.sp <- seq(min(metadata.sp$date), max(metadata.sp$date) + 7, by="7 days")
+metadata.sp$week <- cut(metadata.sp$date, breaks = week_boundaries.sp, labels = FALSE)
+metadata.sp$week <- as.factor(metadata.sp$week)
+head(metadata.sp)
+View(metadata.sp)
+str(metadata.sp$week)# 3 weeks
 
 ##THE WEEKS
 ####make network with gbi: select the rows corresponding to each week.
@@ -886,9 +912,96 @@ head(table.wint.week3)
 ###Merge all weeks together to create one dataframe for the winter
 table_week_wint <- rbind(table.wint.week1, table.wint.week2, table.wint.week3)
 
+###SPRING
+#week1
+which(metadata.sp$week == 1)
+gbi.sp.1 <- gbi.sp[1:108,]
+threshold <- 5
+gbi.sp.1.sub <- gbi.sp.1 [,colSums(gbi.sp.1 )>=threshold]
+
+network.sp.week1 <- get_network(gbi.sp.1.sub, data_format="GBI",
+                                  association_index="SRI")
+
+net.sp.week1 <- graph_from_adjacency_matrix(network.sp.week1,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+net.sp.1_deg <- degree(net.sp.week1)
+
+Tag <- V(net.sp.week1)$name
+degree.sp_table1 <- data.frame(
+  PIT = Tag,
+  degree = net.sp.1_deg)
+
+dc.sp1 <- merge(degree.sp_table1, sp_class_season, by.x= "PIT" )
+
+btw.sp.1 <- betweenness(net.sp.week1,v = V(net.sp.week1),directed = F)
+betweenness.sp_table1 <- data.frame(
+  PIT = Tag,
+  betweenness = btw.sp.1)
+
+table.sp.week1 <- merge(dc.sp1,betweenness.sp_table1, by.x= "PIT" )
+table.sp.week1$Week <- 1
+head(table.sp.week1)
+
+#week2
+which(metadata.sp$week == 2)
+gbi.sp.2 <- gbi.sp[109:283,]
+threshold <- 5
+gbi.sp.2.sub <- gbi.sp.2 [,colSums(gbi.sp.2 )>=threshold]
+
+network.sp.week2 <- get_network(gbi.sp.2.sub, data_format="GBI",
+                                  association_index="SRI")
+net.sp.week2 <- graph_from_adjacency_matrix(network.sp.week2,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+net.sp.2_deg <- degree(net.sp.week2)
+
+Tag <- V(net.sp.week2)$name
+degree.sp_table2 <- data.frame(
+  PIT = Tag,
+  degree = net.sp.2_deg)
+
+dc.sp2 <- merge(degree.sp_table2, sp_class_season, by.x= "PIT" )
+
+btw.sp.2 <- betweenness(net.sp.week2,v = V(net.sp.week2),directed = F)
+betweenness.sp_table2 <- data.frame(
+  PIT = Tag,
+  betweenness = btw.sp.2)
+
+table.sp.week2 <- merge(dc.sp2,betweenness.sp_table2, by.x= "PIT" )
+table.sp.week2$Week <- 2
+head(table.sp.week2)
+
+#week3
+which(metadata.sp$week == 3)
+gbi.sp.3 <- gbi.sp[284:476,]
+threshold <- 5
+gbi.sp.3.sub <- gbi.sp.3 [,colSums(gbi.sp.3 )>=threshold]
+
+network.sp.week3 <- get_network(gbi.sp.3.sub, data_format="GBI",
+                                  association_index="SRI")
+net.sp.week3 <- graph_from_adjacency_matrix(network.sp.week3,mode= c("undirected"), diag=FALSE, weighted=TRUE)
+net.sp.3_deg <- degree(net.sp.week3)
+
+Tag <- V(net.sp.week3)$name
+degree.sp_table3 <- data.frame(
+  PIT = Tag,
+  degree = net.sp.3_deg)
+
+dc.sp3 <- merge(degree.sp_table3, sp_class_season, by.x= "PIT" )
+
+btw.sp.3 <- betweenness(net.sp.week3,v = V(net.sp.week3),directed = F)
+betweenness.sp_table3 <- data.frame(
+  PIT = Tag,
+  betweenness = btw.sp.3)
+
+table.sp.week3 <- merge(dc.sp3,betweenness.sp_table3, by.x= "PIT" )
+table.sp.week3$Week <- 3
+head(table.sp.week3)
+
+###Merge all weeks together to create one dataframe for spring
+table_week_sp <- rbind(table.sp.week1, table.sp.week2, table.sp.week3)
+
 ###Merge all dataframes created above in rder to have one object with all the seasons, and the ind with their respective degree's, betwennesses and species
-table_all <- rbind(table_week_summer, table_week_aut, table_week_wint)
+table_all <- rbind(table_week_summer, table_week_aut, table_week_wint, table_week_sp)
 head(table_all)
+
 
 
 #Now that I have a table where I can see each ind (PIT) with its respective degree and betweenness and order of arrival,
@@ -920,13 +1033,10 @@ m2 <-
 ##Maybe interesting to include betweenness and degree in the very first models of this script. And thus use only one dataframe: table_all
 
 
-####Maybe also interesting to look at the repeatbility again, in order to see whether the order of arrival of tits is something they ajust according to the circumstances or is it a behaviour that is not that flexible.
-#We know that birds sample their environment when looking for food but also rely on other in order to collect social cues, but what if the foraging behaviour is also influenced by their personality
+####Maybe also interesting to look at the repeatbility again?
 
 
-
-
-#####In the litterature, what has been done so far and is similar to this study
+#####In the literature, what has been done so far and is similar to this study (I still need to go more precisely into the literature)
 #https://www.sciencedirect.com/science/article/abs/pii/S0003347220301251
 #https://www.nature.com/articles/s41598-017-00929-8
 #https://royalsocietypublishing.org/doi/full/10.1098/rspb.2014.2804#d1e1575
