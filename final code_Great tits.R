@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 ##Library
 library(asnipe)
 library(ggplot2)
@@ -207,45 +206,6 @@ sp_class_season$order<- as.numeric(sp_class_season$order)
 sp_class_season <- subset(sp_class_season, sp_class_season$species %in% c("BLUTI", "GRETI", "MARTI", "NUTHA"))
 sp_class_season$order <- as.integer(sp_class_season$order)
 
-
-##Models
-# model_order_offset <- glmer(order ~ species*season + species*age_in_2020 + season*species+ offset(log(group))+ (1|PIT), family=poisson, data= sp_class_season)
-#not the correct use of offset for the moment
-
-# SW: commenting out here
-# #Otherwise with weight, considering the flock size
-# #Knowing that every individual in one group has been at least once on the feeder
-# sp_class_season <- sp_class_season %>%
-#   group_by(group) %>% #"for each group"
-#   mutate(weight = 1 / n()) #n being the total number of observations within each group. 
-# 
-# model_order_weight <- glmer(order ~ species*age_in_2020 + species*season+ season*age_in_2020 + (1|PIT), family=poisson, weights= weight, data= sp_class_season)
-# #model failed to converge
-# drop1(model_order_weight, test="Chisq")
-# #leave out the non significant interactions
-# model_order_weight2 <- glmer(order ~ age_in_2020 + species*season + (1|PIT), family=poisson, weights= weight, data= sp_class_season)
-# summary(model_order_weight2)#model failed to converge
-# 
-# #Random effects:
-# #Groups Name        Variance Std.Dev.
-# #PIT    (Intercept) 0.04784  0.2187  
-# #Number of obs: 25997, groups:  PIT, 269
-# 
-# #Fixed effects:
-# #                            Estimate Std. Error z value Pr(>|z|)    
-# #(Intercept)                1.38324    0.14927   9.266  < 2e-16 ***
-# #age_in_2020juvenile        0.17034    0.03899   4.369 1.25e-05 ***
-# #speciesGRETI              -0.06816    0.16874  -0.404   0.6863    
-# #speciesMARTI              -0.46149    0.18820  -2.452   0.0142 *  
-# #speciesNUTHA              -0.53505    0.24475  -2.186   0.0288 *  
-# #seasonsummer              -0.70835    0.16259  -4.357 1.32e-05 ***
-# #seasonwinter               0.88665    0.15109   5.869 4.40e-09 ***
-# #speciesGRETI:seasonsummer -0.07790    0.17985  -0.433   0.6649    
-# #speciesMARTI:seasonsummer  0.19104    0.19250   0.992   0.3210    
-# #speciesNUTHA:seasonsummer  0.31332    0.24293   1.290   0.1971    
-# #speciesGRETI:seasonwinter -0.07428    0.17148  -0.433   0.6649    
-# #speciesMARTI:seasonwinter -0.48085    0.19021  -2.528   0.0115 *  
-# #speciesNUTHA:seasonwinter -0.30128    0.26304  -1.145   0.2521   
 
 
 #####Check if the SN position can explain these patterns 
