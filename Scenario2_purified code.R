@@ -230,7 +230,7 @@ summary(model_order_weight2)#model failed to converge
 #speciesNUTHA:seasonwinter -0.30128    0.26304  -1.145   0.2521   
 
 
-#####Check if the SN position can explain these patterns (I don't have spring)
+#####Check if the SN position can explain these patterns 
 #data
 load("data/gmm.autumn.RData")
 head(gmm.autumn) 
