@@ -489,13 +489,15 @@ save.image("image.RData")
 load("image.RData")
 
 
+####REPEATABILITY
+library(rptR)
+rep <- rpt(order ~ species * season + species * age_in_2020 + scale(degree) + scale(betweenness) + offset(log(group.size)) + (1|PIT),
+grname = "PIT",data= network.pos.all.seasons, datatype="Poisson", nboot=1000, npermut=0, adjusted=FALSE)
+
+print(rep)
+#use the link scale to interpret
 
 
-
-
-
-####Maybe also interesting to look at the repeatbility again, in order to see whether the order of arrival of tits is something they ajust according to the circumstances or is it a behaviour that is not that flexible.
-#We know that birds sample their environment when looking for food but also rely on other in order to collect social cues, but what if the foraging behaviour is also influenced by their personality
 
 
 
