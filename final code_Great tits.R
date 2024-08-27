@@ -436,6 +436,7 @@ model_order <- brm(
 
 summary(model_order)
 
+
 pp_check(model_order)
 # looks good!
 
@@ -453,10 +454,16 @@ load("image.RData")
 ####REPEATABILITY
 library(rptR)
 rep <- rpt(order ~ species * season + species * age_in_2020 + scale(degree) + scale(betweenness) + offset(log(group.size)) + (1|PIT),
-grname = "PIT",data= network.pos.all.seasons, datatype="Poisson", nboot=1000, npermut=0, adjusted=FALSE)
+grname = "PIT",data= network.pos.all.seasons, datatype="Poisson", nboot=2000, npermut=1000, adjusted=FALSE)
 
 print(rep)
 #use the link scale to interpret
+
+##!!  The package rptR relies on mixed-effects models fitted by the lmer and glmer functions from the lme4 package https://besjournals.onlinelibrary.wiley.com/doi/full/10.1111/2041-210X.12797
+
+###What if I kept out the non significant interactions in the model and made the nboot and npermut easier
+rep <- rpt(order ~ species*season + age_in_2020 + scale(degree) + scale(betweenness) + offset(log(group.size)) + (1|PIT),
+           grname = "PIT",data= network.pos.all.seasons, datatype="Poisson", nboot=10, npermut=0, adjusted=FALSE)
 
 
 
