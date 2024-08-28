@@ -464,6 +464,9 @@ print(rep)
 ###What if I kept out the non significant interactions in the model and made the nboot and npermut easier
 rep <- rpt(order ~ species*season + age_in_2020 + scale(degree) + scale(betweenness) + offset(log(group.size)) + (1|PIT),
            grname = "PIT",data= network.pos.all.seasons, datatype="Poisson", nboot=10, npermut=0, adjusted=FALSE)
+rep
+#it elapsed
+
 
 
 
@@ -474,4 +477,5 @@ rep <- rpt(order ~ species*season + age_in_2020 + scale(degree) + scale(betweenn
 #https://www.sciencedirect.com/science/article/abs/pii/S0003347220301251
 #https://www.nature.com/articles/s41598-017-00929-8
 #https://royalsocietypublishing.org/doi/full/10.1098/rspb.2014.2804#d1e1575
+
 
