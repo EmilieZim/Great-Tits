@@ -468,6 +468,63 @@ rep
 #it elapsed
 
 
+#################################""Other methods
+
+#if this is our model:
+glob_model <- brm(
+  order ~  species * season + species * age_in_2020 + scale(degree)*season + scale(betweenness)*season + scale(degree)*age_in_2020 + scale(betweenness)*age_in_2020 + group.size + (1|PIT),
+  family = cumulative(link="logit", threshold = "flexible"), 
+  data = network.pos.all.seasons,
+  chains = 2,
+  iter = 4000,
+  cores = 4,
+  save_pars = save_pars(all = TRUE)
+)
+
+##The following analysis has been done with model_order. It will have to be modified to global_model
+# I didn't have the global_model yet so I did it with our previous model so that I can check whether the analysis works or not
+
+
+#> ---- Extract the variance components and calculate repeatability ----
+
+####Other method based on: #####Using the code from the study: https://www.sciencedirect.com/science/article/abs/pii/S000334722200001X
+#I used model_order to do the following code, however I considered the model to be ordinal and not Poisson, just so that the code is prepared the terms just have to be adjusted for our new model "glob_model"
+#If sigma^2 (= the residual variance) is consistent for ordinal models, it should be: π^2 / 3 = sigma^2, based on the following article and blog source https://www.tandfonline.com/doi/abs/10.1207/S15328031US0104_02 https://discourse.mc-stan.org/t/brms-to-estimate-variance-components-for-ordinal-measured-response/4555/3 https://discourse.mc-stan.org/t/intraclass-correlation-for-ordered-logit-models-in-brms/24692 
+#However, I am not sure this is correct
+
+#> ---- Extract the variance components and calculate repeatability ----
+get_variables(model_order)#only one sd  "sd_PIT__Intercept" 
+#Extract the variance components 
+post.data = model_order%>% spread_draws(sd_PIT__Intercept) 
+#Among-individual variance --> again, adapt with our variables (do it for each of them)
+post.data$Va_PIT = post.data$sd_PIT__Intercept^2 # we square it because it is currently a standard deviation, and by squaring this value we turn it into a variance
+#residual variance (= sigma squared)
+sigma_sq <- pi^2 / 3
+
+#Within-individual variance 
+post.data$Vw = post.data$sigma_sq 
+
+#Repeatability 
+repeatability <-  post.data$sd_PIT__Intercept/(post.data$sd_PIT__Intercept+ sigma_sq)
+
+#Focal animal repeatability
+hist(repeatability) #histrogram of the repeatabilities obtained from 36000 posterior distributions. Looks like the mean ~0.40
+mean(repeatability)
+#[1] 0.03
+rethinking::HPDI(repeatability, prob = 0.95)
+# |0.95     0.95| 
+#   0.0301 0.0382 
+
+#our value should fall within this IC
+
+#Adjusted repeatability (i.e. measure also takes into account variation arising from observer differences) --> this could not be caculated for our data and model
+
+#Note that all of these repeatabilities are an adjusted repeatability estimate because we have taken into account variation arising from the experimental design.
+
+
+
+
+
 
 
 
