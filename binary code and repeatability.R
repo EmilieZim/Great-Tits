@@ -737,10 +737,12 @@ visits_all_season <- read.csv("data/visits_all_season.csv")
 # this should tell use something about caching - caching species are expected to fly back and forth more often within one flock visit
 
 # 2) number of feeders visited ~ species*season + (1|PIT)
+# this will tell use about territoriality - the more territorial species should have fewer feeders that they use
 # you will need to use this data frame:
+network.pos.all.seasons
 # the 'location' are the different feeders - so you will need to find a way to summarize it with columns:
 # PIT, season, species, age, num.feeders.visited
-network.pos.all.seasons
+
 
 
 
