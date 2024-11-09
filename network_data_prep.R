@@ -106,6 +106,8 @@ gmm.summer$metadata$Location2 <- substr(gmm.summer$metadata$Location, 8, 13)
 # for each group, we have the start and end time and a location
 # we add a new column called 'group' that will be filled by using a function
 net.data.summer[, "group"] <- NA
+# we also extract the visit duration
+net.data.summer[, "visit.duration"] <- NA
 head(net.data.summer)
 
 
@@ -116,13 +118,14 @@ for(i in 1:length(gmm.summer$metadata$Start)){ # for each start time
                                net.data.summer$Date.Time<=gmm.summer$metadata$End[i] &
                                net.data.summer$location == gmm.summer$metadata$Location2[i]))
   net.data.summer[rows.i, "group"] <- i
-  
+  net.data.summer[rows.i, "visit.duration"] <- 
+  as.numeric(difftime(as.POSIXct(substr(gmm.summer$metadata$End[i],7,12), format="%H%M%S"),as.POSIXct(substr(gmm.summer$metadata$Start[i],7,12), format="%H%M%S")), units="mins")
 }
 
 net.data.summer[which(is.na(net.data.summer$group)),]
 
 length(unique(net.data.summer$group))
-# 2166 groups remain
+# 2166 groups 
 
 # make sure it's in correct order (first ordered by groups, then time)
 net.data.summer <- net.data.summer[with(net.data.summer, order(group, Date.Time)), ]
@@ -189,7 +192,7 @@ sp_class_summ <- subset(sp_class_summ, sp_class_summ$species %in% c("BLUTI", "GR
 sp_class_summ$season <- "summer"
 
 # extract the data frame for the visit data
-summer.visit.df <- unique(sp_class_summ[,c("PIT", "visit", "species", "group", "season")])
+summer.visit.df <- unique(sp_class_summ[,c("PIT", "visit", "species", "group", "season", "visit.duration")])
 # save it
 #save(summer.visit.df, file="summer.visit.df.RDA")
 
@@ -213,6 +216,8 @@ gmm.autumn$metadata$Location2 <- substr(gmm.autumn$metadata$Location, 8, 13)
 # for each group, we have the start and end time and a location
 # we add a new column called 'group' that will be filled by using a function
 net.data.autumn[, "group"] <- NA
+# we also extract the visit duration
+net.data.autumn[, "visit.duration"] <- NA
 head(net.data.autumn)
 
 
@@ -223,7 +228,8 @@ for(i in 1:length(gmm.autumn$metadata$Start)){ # for each start time
                                net.data.autumn$Date.Time<=gmm.autumn$metadata$End[i] &
                                net.data.autumn$location == gmm.autumn$metadata$Location2[i]))
   net.data.autumn[rows.i, "group"] <- i
-  
+  net.data.autumn[rows.i, "visit.duration"] <- 
+    as.numeric(difftime(as.POSIXct(substr(gmm.autumn$metadata$End[i],7,12), format="%H%M%S"),as.POSIXct(substr(gmm.autumn$metadata$Start[i],7,12), format="%H%M%S")), units="mins")
 }
 
 net.data.autumn <- net.data.autumn[which(!(is.na(net.data.autumn$group))),]
@@ -295,7 +301,7 @@ sp_class_aut <- subset(sp_class_aut, sp_class_aut$species %in% c("BLUTI", "GRETI
 sp_class_aut$season <- "autumn"
 
 # extract the data frame for the visit data
-autumn.visit.df <- unique(sp_class_aut[,c("PIT", "visit", "species", "group", "season")])
+autumn.visit.df <- unique(sp_class_aut[,c("PIT", "visit", "species", "group", "season", "visit.duration")])
 # save it
 #save(autumn.visit.df, file="autumn.visit.df.RDA")
 
@@ -321,6 +327,8 @@ gmm.winter$metadata$Location2 <- substr(gmm.winter$metadata$Location, 8, 13)
 # for each group, we have the start and end time and a location
 # we add a new column called 'group' that will be filled by using a function
 net.data.winter[, "group"] <- NA
+# we also extract the visit duration
+net.data.winter[, "visit.duration"] <- NA
 head(net.data.winter)
 
 
@@ -331,7 +339,8 @@ for(i in 1:length(gmm.winter$metadata$Start)){ # for each start time
                                net.data.winter$Date.Time<=gmm.winter$metadata$End[i] &
                                net.data.winter$location == gmm.winter$metadata$Location2[i]))
   net.data.winter[rows.i, "group"] <- i
-  
+  net.data.winter[rows.i, "visit.duration"] <- 
+    as.numeric(difftime(as.POSIXct(substr(gmm.winter$metadata$End[i],7,12), format="%H%M%S"),as.POSIXct(substr(gmm.winter$metadata$Start[i],7,12), format="%H%M%S")), units="mins")
 }
 
 net.data.winter <- net.data.winter[which(!(is.na(net.data.winter$group))),]
@@ -404,7 +413,7 @@ sp_class_wint <- subset(sp_class_wint, sp_class_wint$species %in% c("BLUTI", "GR
 sp_class_wint$season <- "winter"
 
 # extract the data frame for the visit data
-winter.visit.df <- unique(sp_class_wint[,c("PIT", "visit", "species", "group", "season")])
+winter.visit.df <- unique(sp_class_wint[,c("PIT", "visit", "species", "group", "season", "visit.duration")])
 # save it
 #save(winter.visit.df, file="winter.visit.df.RDA")
 
@@ -429,6 +438,8 @@ gmm.spring$metadata$Location2 <- substr(gmm.spring$metadata$Location, 8, 13)
 # for each group, we have the start and end time and a location
 # we add a new column called 'group' that will be filled by using a function
 net.data.spring[, "group"] <- NA
+# we also extract the visit duration
+net.data.spring[, "visit.duration"] <- NA
 head(net.data.spring)
 
 
@@ -439,7 +450,8 @@ for(i in 1:length(gmm.spring$metadata$Start)){ # for each start time
                                net.data.spring$Date.Time<=gmm.spring$metadata$End[i] &
                                net.data.spring$location == gmm.spring$metadata$Location2[i]))
   net.data.spring[rows.i, "group"] <- i
-  
+  net.data.spring[rows.i, "visit.duration"] <- 
+    as.numeric(difftime(as.POSIXct(substr(gmm.spring$metadata$End[i],7,12), format="%H%M%S"),as.POSIXct(substr(gmm.spring$metadata$Start[i],7,12), format="%H%M%S")), units="mins")
 }
 
 net.data.spring[which(is.na(net.data.spring$group)),]
@@ -512,7 +524,7 @@ sp_class_spr <- subset(sp_class_spr, sp_class_spr$species %in% c("BLUTI", "GRETI
 sp_class_spr$season <- "spring"
 
 # extract the data frame for the visit data
-spring.visit.df <- unique(sp_class_spr[,c("PIT", "visit", "species", "group", "season")])
+spring.visit.df <- unique(sp_class_spr[,c("PIT", "visit", "species", "group", "season", "visit.duration")])
 # save it
 #save(spring.visit.df, file="spring.visit.df.RDA")
 
@@ -531,7 +543,7 @@ sp_class_season <- rbind(sp_class_summ, sp_class_aut, sp_class_wint, sp_class_sp
 visits_all_season <- rbind(summer.visit.df, autumn.visit.df, winter.visit.df, spring.visit.df)
 
 write.csv(visits_all_season, file="data/visits_all_season.csv")
-
+read.csv("data/visits_all_season.csv")
 # 4) calculate network position -------------------------------------------
 
 # this automatically adds the social network position calculated across the three weeks each season for birds with a minimum of 5 visits

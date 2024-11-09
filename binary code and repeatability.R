@@ -450,7 +450,7 @@ model_order_vif <- glmer(leader.follower ~  species + season + age_in_2020 + sca
 summary(model_order_vif)
 
 library(car)
- vif(model_order_vif)
+vif(model_order_vif)
 # GVIF Df GVIF^(1/(2*Df))
 # species            1.378070  3        1.054901
 # season             2.693207  3        1.179537
@@ -514,54 +514,54 @@ summary(glob_model)
 # Multilevel Hyperparameters:
 #   ~PIT (Number of levels: 234) 
 # Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
-# sd(Intercept)     0.29      0.03     0.24     0.34 1.00     1843     2584
+# sd(Intercept)     0.29      0.03     0.24     0.34 1.00     1719     2872
 # 
 # Regression Coefficients:
 #   Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
-# Intercept                                1.98      0.32     1.36     2.61 1.00     1193     1964
-# speciesGRETI                            -0.22      0.22    -0.63     0.20 1.00     1709     2349
-# speciesMARTI                             0.37      0.23    -0.07     0.82 1.00     1561     2624
-# speciesNUTHA                             1.30      0.34     0.65     1.99 1.00     1987     2412
-# seasonspring                            -0.61      0.31    -1.23    -0.00 1.00     1303     1952
-# seasonsummer                            -0.51      0.38    -1.25     0.22 1.00     1517     2133
-# seasonwinter                            -1.92      0.32    -2.56    -1.29 1.00     1154     2175
-# age_in_2020juvenile                     -0.12      0.13    -0.37     0.14 1.00     2797     2908
-# scalebetweenness                        -0.02      0.17    -0.35     0.31 1.00     1579     2449
-# scaledegree                              0.16      0.27    -0.37     0.68 1.00     1282     1947
-# group.size                              -0.69      0.04    -0.77    -0.62 1.00     2423     2953
-# speciesGRETI:seasonspring                0.10      0.17    -0.24     0.44 1.00     2014     2843
-# speciesMARTI:seasonspring               -0.27      0.22    -0.70     0.14 1.00     1827     2509
-# speciesNUTHA:seasonspring               -0.77      0.30    -1.35    -0.19 1.00     2591     3134
-# speciesGRETI:seasonsummer                0.51      0.25     0.01     1.00 1.00     2764     2817
-# speciesMARTI:seasonsummer                0.13      0.28    -0.43     0.69 1.00     2670     2769
-# speciesNUTHA:seasonsummer               -0.11      0.33    -0.74     0.54 1.00     2761     3028
-# speciesGRETI:seasonwinter                0.08      0.22    -0.35     0.50 1.00     1771     2631
-# speciesMARTI:seasonwinter                0.28      0.22    -0.17     0.69 1.00     1802     2381
-# speciesNUTHA:seasonwinter               -0.08      0.32    -0.72     0.55 1.00     2018     2652
-# speciesGRETI:age_in_2020juvenile        -0.09      0.14    -0.37     0.18 1.00     2774     2890
-# speciesMARTI:age_in_2020juvenile        -0.01      0.36    -0.70     0.69 1.00     3791     2535
-# speciesNUTHA:age_in_2020juvenile        -0.01      0.30    -0.62     0.57 1.00     3275     2971
-# seasonspring:scalebetweenness            0.08      0.14    -0.20     0.35 1.00     1726     2445
-# seasonsummer:scalebetweenness            0.37      0.18     0.02     0.70 1.00     2410     2898
-# seasonwinter:scalebetweenness            0.24      0.12     0.01     0.46 1.00     1820     2393
-# speciesGRETI:scalebetweenness           -0.17      0.14    -0.45     0.11 1.00     2737     3507
-# speciesMARTI:scalebetweenness           -0.00      0.12    -0.24     0.24 1.00     2335     2877
-# speciesNUTHA:scalebetweenness           -0.22      0.20    -0.60     0.17 1.00     2464     2644
-# age_in_2020juvenile:scalebetweenness    -0.12      0.08    -0.27     0.03 1.00     3917     2948
-# seasonspring:scaledegree                -0.34      0.26    -0.86     0.17 1.00     1338     1867
-# seasonsummer:scaledegree                -0.26      0.28    -0.80     0.27 1.00     1350     2151
-# seasonwinter:scaledegree                -0.28      0.26    -0.78     0.22 1.00     1359     1929
-# speciesGRETI:scaledegree                 0.13      0.10    -0.06     0.31 1.00     2256     2933
-# speciesMARTI:scaledegree                 0.02      0.11    -0.20     0.25 1.00     2476     2943
-# speciesNUTHA:scaledegree                 0.25      0.21    -0.17     0.67 1.00     3516     2948
-# age_in_2020juvenile:scaledegree         -0.06      0.06    -0.17     0.06 1.00     4566     3440
-# speciesGRETI:group.size                  0.02      0.02    -0.01     0.05 1.00     5595     3572
-# speciesMARTI:group.size                 -0.11      0.02    -0.15    -0.06 1.00     5083     3439
-# speciesNUTHA:group.size                 -0.25      0.04    -0.32    -0.18 1.00     6853     3335
-# age_in_2020juvenile:group.size           0.05      0.01     0.02     0.08 1.00     6513     3261
-# seasonspring:group.size                  0.19      0.04     0.12     0.26 1.00     2498     2962
-# seasonsummer:group.size                  0.05      0.04    -0.03     0.13 1.00     2756     2763
-# seasonwinter:group.size                  0.46      0.03     0.40     0.53 1.00     2391     2828
+# Intercept                                1.98      0.31     1.35     2.58 1.00     1401     2137
+# speciesGRETI                            -0.22      0.22    -0.64     0.20 1.00     2022     2429
+# speciesMARTI                             0.38      0.23    -0.07     0.83 1.00     2158     2706
+# speciesNUTHA                             1.31      0.34     0.63     1.99 1.00     2549     2609
+# seasonspring                            -0.61      0.31    -1.21     0.03 1.00     1452     2184
+# seasonsummer                            -0.50      0.38    -1.24     0.25 1.00     1776     2279
+# seasonwinter                            -1.91      0.32    -2.53    -1.27 1.00     1431     2223
+# age_in_2020juvenile                     -0.12      0.13    -0.37     0.14 1.00     3211     3130
+# scalebetweenness                        -0.02      0.17    -0.35     0.30 1.00     1927     2707
+# scaledegree                              0.15      0.26    -0.36     0.67 1.00     1487     1795
+# group.size                              -0.69      0.04    -0.77    -0.62 1.00     2666     2870
+# speciesGRETI:seasonspring                0.10      0.18    -0.25     0.44 1.00     2165     2361
+# speciesMARTI:seasonspring               -0.27      0.22    -0.69     0.16 1.00     2251     2606
+# speciesNUTHA:seasonspring               -0.77      0.30    -1.37    -0.19 1.00     2613     3124
+# speciesGRETI:seasonsummer                0.50      0.25     0.02     0.99 1.00     2742     3216
+# speciesMARTI:seasonsummer                0.13      0.27    -0.41     0.66 1.00     2525     2869
+# speciesNUTHA:seasonsummer               -0.12      0.33    -0.76     0.52 1.00     2754     2824
+# speciesGRETI:seasonwinter                0.08      0.22    -0.36     0.48 1.00     1962     2389
+# speciesMARTI:seasonwinter                0.27      0.23    -0.17     0.72 1.00     2334     2758
+# speciesNUTHA:seasonwinter               -0.09      0.32    -0.72     0.53 1.00     2081     2785
+# speciesGRETI:age_in_2020juvenile        -0.09      0.14    -0.37     0.18 1.00     3152     3030
+# speciesMARTI:age_in_2020juvenile        -0.01      0.35    -0.71     0.67 1.00     4372     3233
+# speciesNUTHA:age_in_2020juvenile        -0.02      0.31    -0.63     0.59 1.00     3378     2811
+# seasonspring:scalebetweenness            0.08      0.14    -0.19     0.35 1.00     1886     2793
+# seasonsummer:scalebetweenness            0.37      0.17     0.04     0.71 1.00     2682     3075
+# seasonwinter:scalebetweenness            0.24      0.11     0.02     0.47 1.00     2036     3007
+# speciesGRETI:scalebetweenness           -0.17      0.14    -0.44     0.11 1.00     3250     3317
+# speciesMARTI:scalebetweenness           -0.00      0.13    -0.26     0.25 1.00     3065     3050
+# speciesNUTHA:scalebetweenness           -0.22      0.20    -0.62     0.18 1.00     3032     2954
+# age_in_2020juvenile:scalebetweenness    -0.12      0.08    -0.27     0.03 1.00     4903     3239
+# seasonspring:scaledegree                -0.34      0.26    -0.85     0.17 1.00     1512     2330
+# seasonsummer:scaledegree                -0.26      0.28    -0.81     0.29 1.00     1580     2476
+# seasonwinter:scaledegree                -0.28      0.26    -0.77     0.22 1.00     1525     2428
+# speciesGRETI:scaledegree                 0.13      0.09    -0.05     0.32 1.00     2719     3027
+# speciesMARTI:scaledegree                 0.02      0.12    -0.20     0.25 1.00     2677     2962
+# speciesNUTHA:scaledegree                 0.26      0.21    -0.16     0.68 1.00     3440     3174
+# age_in_2020juvenile:scaledegree         -0.05      0.06    -0.17     0.05 1.00     5396     3477
+# speciesGRETI:group.size                  0.02      0.02    -0.01     0.05 1.00     6316     3236
+# speciesMARTI:group.size                 -0.11      0.02    -0.15    -0.06 1.00     5184     2987
+# speciesNUTHA:group.size                 -0.25      0.04    -0.32    -0.18 1.00     5449     3094
+# age_in_2020juvenile:group.size           0.05      0.01     0.02     0.08 1.00     6400     3160
+# seasonspring:group.size                  0.19      0.04     0.11     0.26 1.00     2790     2831
+# seasonsummer:group.size                  0.05      0.04    -0.03     0.13 1.00     3051     3089
+# seasonwinter:group.size                  0.46      0.03     0.40     0.53 1.00     2838     2922
 # 
 # Draws were sampled using sampling(NUTS). For each parameter, Bulk_ESS
 # and Tail_ESS are effective sample size measures, and Rhat is the potential
@@ -578,7 +578,7 @@ summary(glob_model)
 
 red_model <- brm(
   leader.follower ~  species * season + scale(betweenness) *
-    season + group.size * species + group.size *
+    season + + scale(degree) + group.size * species + group.size *
     age_in_2020 + group.size * season + (1 | PIT),
   family = bernoulli, 
   data = network.pos.all.seasons,
@@ -593,7 +593,7 @@ summary(red_model)
 
 # Family: bernoulli 
 # Links: mu = logit 
-# Formula: leader.follower ~ species * season + scale(betweenness) * season + group.size * species + group.size * age_in_2020 + group.size * season + (1 | PIT) 
+# Formula: leader.follower ~ species * season + scale(betweenness) * season + +scale(degree) + group.size * species + group.size * age_in_2020 + group.size * season + (1 | PIT) 
 # Data: network.pos.all.seasons (Number of observations: 27163) 
 # Draws: 2 chains, each with iter = 4000; warmup = 2000; thin = 1;
 # total post-warmup draws = 4000
@@ -601,43 +601,107 @@ summary(red_model)
 # Multilevel Hyperparameters:
 #   ~PIT (Number of levels: 234) 
 # Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
-# sd(Intercept)     0.27      0.02     0.23     0.32 1.00     2056     2996
+# sd(Intercept)     0.28      0.03     0.23     0.33 1.00     2011     2915
 # 
 # Regression Coefficients:
 #   Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
-# Intercept                          1.86      0.17     1.52     2.19 1.00     1020     1933
-# speciesGRETI                      -0.29      0.16    -0.61     0.04 1.00     1559     2100
-# speciesMARTI                       0.26      0.19    -0.11     0.63 1.00     1176     2122
-# speciesNUTHA                       0.95      0.25     0.47     1.45 1.00     1307     2253
-# seasonspring                      -0.37      0.18    -0.72    -0.02 1.01     1026     1950
-# seasonsummer                      -0.35      0.26    -0.87     0.16 1.00     1202     1905
-# seasonwinter                      -1.88      0.18    -2.22    -1.53 1.00     1050     1755
-# scalebetweenness                  -0.04      0.08    -0.20     0.13 1.00     1755     2666
-# group.size                        -0.69      0.03    -0.76    -0.63 1.00     1609     2537
-# age_in_2020juvenile               -0.15      0.08    -0.31    -0.00 1.00     2724     3045
-# speciesGRETI:seasonspring          0.13      0.16    -0.19     0.45 1.00     1452     2546
-# speciesMARTI:seasonspring         -0.08      0.19    -0.46     0.30 1.00     1304     2208
-# speciesNUTHA:seasonspring         -0.44      0.27    -0.97     0.09 1.00     1418     2311
-# speciesGRETI:seasonsummer          0.53      0.25     0.05     1.01 1.00     1553     2340
-# speciesMARTI:seasonsummer          0.29      0.27    -0.23     0.84 1.00     1407     2324
-# speciesNUTHA:seasonsummer          0.08      0.29    -0.49     0.66 1.00     1280     2246
-# speciesGRETI:seasonwinter          0.22      0.17    -0.12     0.53 1.00     1498     2264
-# speciesMARTI:seasonwinter          0.50      0.19     0.14     0.88 1.00     1221     2117
-# speciesNUTHA:seasonwinter          0.36      0.24    -0.11     0.82 1.00     1171     2102
-# seasonspring:scalebetweenness      0.00      0.10    -0.20     0.20 1.00     2213     2846
-# seasonsummer:scalebetweenness      0.22      0.14    -0.04     0.48 1.00     2820     3311
-# seasonwinter:scalebetweenness      0.13      0.08    -0.04     0.29 1.00     1779     2179
-# speciesGRETI:group.size            0.02      0.02    -0.01     0.06 1.00     3512     3230
-# speciesMARTI:group.size           -0.11      0.02    -0.15    -0.07 1.00     3583     2757
-# speciesNUTHA:group.size           -0.24      0.03    -0.31    -0.18 1.00     4564     3602
-# group.size:age_in_2020juvenile     0.04      0.01     0.02     0.07 1.00     4898     2863
-# seasonspring:group.size            0.18      0.04     0.11     0.25 1.00     1590     2556
-# seasonsummer:group.size            0.05      0.04    -0.03     0.12 1.00     2178     3103
-# seasonwinter:group.size            0.46      0.03     0.40     0.53 1.00     1537     2702
+# Intercept                          1.76      0.18     1.40     2.10 1.00     1098     1772
+# speciesGRETI                      -0.29      0.16    -0.61     0.03 1.00     1415     2370
+# speciesMARTI                       0.31      0.20    -0.07     0.70 1.00     1216     2072
+# speciesNUTHA                       0.99      0.25     0.50     1.48 1.00     1178     1863
+# seasonspring                      -0.33      0.18    -0.68     0.02 1.00     1125     2200
+# seasonsummer                      -0.34      0.26    -0.85     0.17 1.00     1371     2388
+# seasonwinter                      -1.76      0.18    -2.11    -1.39 1.00     1194     2017
+# scalebetweenness                  -0.05      0.08    -0.21     0.11 1.00     1866     2256
+# scaledegree                       -0.08      0.04    -0.15    -0.01 1.00     3150     3060
+# group.size                        -0.69      0.04    -0.76    -0.62 1.00     1739     2558
+# age_in_2020juvenile               -0.13      0.08    -0.29     0.03 1.00     3361     3022
+# speciesGRETI:seasonspring          0.13      0.17    -0.20     0.45 1.00     1471     2521
+# speciesMARTI:seasonspring         -0.16      0.20    -0.55     0.21 1.00     1301     2086
+# speciesNUTHA:seasonspring         -0.52      0.27    -1.03     0.02 1.00     1517     2413
+# speciesGRETI:seasonsummer          0.55      0.25     0.06     1.05 1.00     1552     2638
+# speciesMARTI:seasonsummer          0.25      0.28    -0.28     0.78 1.00     1461     2354
+# speciesNUTHA:seasonsummer          0.03      0.29    -0.55     0.59 1.00     1338     2191
+# speciesGRETI:seasonwinter          0.23      0.17    -0.11     0.56 1.00     1371     2223
+# speciesMARTI:seasonwinter          0.45      0.19     0.09     0.82 1.00     1238     1908
+# speciesNUTHA:seasonwinter          0.27      0.24    -0.20     0.73 1.00     1213     2139
+# seasonspring:scalebetweenness      0.03      0.10    -0.18     0.23 1.00     2462     2811
+# seasonsummer:scalebetweenness      0.24      0.13    -0.02     0.50 1.00     2867     3040
+# seasonwinter:scalebetweenness      0.16      0.08    -0.01     0.32 1.00     1862     2372
+# speciesGRETI:group.size            0.02      0.02    -0.01     0.05 1.00     4355     3474
+# speciesMARTI:group.size           -0.11      0.02    -0.15    -0.07 1.00     3988     3015
+# speciesNUTHA:group.size           -0.24      0.03    -0.31    -0.17 1.00     4940     3293
+# group.size:age_in_2020juvenile     0.04      0.01     0.02     0.07 1.00     4416     3104
+# seasonspring:group.size            0.19      0.04     0.11     0.26 1.00     2018     2826
+# seasonsummer:group.size            0.05      0.04    -0.03     0.13 1.00     2136     2735
+# seasonwinter:group.size            0.46      0.03     0.40     0.53 1.00     1977     2653
 # 
 # Draws were sampled using sampling(NUTS). For each parameter, Bulk_ESS
 # and Tail_ESS are effective sample size measures, and Rhat is the potential
 # scale reduction factor on split chains (at convergence, Rhat = 1).
+
+# remove non-significant interaction: season-betweenness (newly non-significant)
+
+red_model <- brm(
+  leader.follower ~  species * season + scale(betweenness) + scale(degree) + group.size * species + group.size *
+    age_in_2020 + group.size * season + (1 | PIT),
+  family = bernoulli, 
+  data = network.pos.all.seasons,
+  chains = 2,
+  iter = 4000,
+  cores = 4,
+  save_pars = save_pars(all = TRUE)
+)
+
+summary(red_model)
+
+# Family: bernoulli 
+# Links: mu = logit 
+# Formula: leader.follower ~ species * season + scale(betweenness) + scale(degree) + group.size * species + group.size * age_in_2020 + group.size * season + (1 | PIT) 
+# Data: network.pos.all.seasons (Number of observations: 27163) 
+# Draws: 2 chains, each with iter = 4000; warmup = 2000; thin = 1;
+# total post-warmup draws = 4000
+# 
+# Multilevel Hyperparameters:
+#   ~PIT (Number of levels: 234) 
+# Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+# sd(Intercept)     0.27      0.02     0.22     0.32 1.00     2288     3020
+# 
+# Regression Coefficients:
+#   Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+# Intercept                          1.83      0.17     1.50     2.16 1.00     1384     2351
+# speciesGRETI                      -0.30      0.16    -0.62     0.02 1.00     1544     2126
+# speciesMARTI                       0.19      0.18    -0.16     0.53 1.00     1444     2168
+# speciesNUTHA                       0.84      0.23     0.38     1.29 1.00     1917     2773
+# seasonspring                      -0.38      0.18    -0.73    -0.05 1.00     1316     2453
+# seasonsummer                      -0.46      0.25    -0.95     0.04 1.00     1525     2453
+# seasonwinter                      -1.85      0.18    -2.20    -1.50 1.00     1414     2536
+# scalebetweenness                   0.07      0.03     0.01     0.13 1.00     3903     3052
+# scaledegree                       -0.07      0.04    -0.14     0.00 1.00     3579     3214
+# group.size                        -0.69      0.04    -0.76    -0.62 1.00     2039     2577
+# age_in_2020juvenile               -0.13      0.08    -0.28     0.03 1.00     2636     2897
+# speciesGRETI:seasonspring          0.15      0.16    -0.17     0.46 1.00     1500     2002
+# speciesMARTI:seasonspring         -0.11      0.18    -0.46     0.25 1.00     1610     2524
+# speciesNUTHA:seasonspring         -0.30      0.25    -0.78     0.19 1.00     2174     2995
+# speciesGRETI:seasonsummer          0.56      0.24     0.07     1.03 1.00     1631     2387
+# speciesMARTI:seasonsummer          0.44      0.25    -0.04     0.92 1.00     1680     2580
+# speciesNUTHA:seasonsummer          0.20      0.27    -0.34     0.72 1.00     1781     2533
+# speciesGRETI:seasonwinter          0.24      0.17    -0.11     0.56 1.00     1580     2426
+# speciesMARTI:seasonwinter          0.62      0.17     0.27     0.95 1.00     1602     1987
+# speciesNUTHA:seasonwinter          0.49      0.21     0.05     0.89 1.00     1940     2870
+# speciesGRETI:group.size            0.02      0.02    -0.01     0.05 1.00     4369     3470
+# speciesMARTI:group.size           -0.10      0.02    -0.15    -0.06 1.00     4271     3405
+# speciesNUTHA:group.size           -0.25      0.04    -0.32    -0.18 1.00     5305     3405
+# group.size:age_in_2020juvenile     0.04      0.01     0.02     0.07 1.00     4533     3013
+# seasonspring:group.size            0.19      0.04     0.11     0.26 1.00     2074     2539
+# seasonsummer:group.size            0.05      0.04    -0.02     0.13 1.00     2331     2903
+# seasonwinter:group.size            0.46      0.03     0.40     0.53 1.00     2068     2504
+# 
+# Draws were sampled using sampling(NUTS). For each parameter, Bulk_ESS
+# and Tail_ESS are effective sample size measures, and Rhat is the potential
+# scale reduction factor on split chains (at convergence, Rhat = 1).
+
+
 
 # check how well it fits
 pp_check(red_model, ndraws = 100)
@@ -649,7 +713,7 @@ plot(red_model)
 
 
 # SW: here is where you can make some nice plots
-plot(conditional_effects(red_model))
+plot(conditional_effects(red_model, re_formula = NULL))
 # you can check my code from the ontogeny of social networks for some input on how to make plots from brms objects using ggplot
 # a 0 here means to be a follower (first in the alphabet)
 
@@ -657,9 +721,9 @@ library(performance)
 # extract an R2 for our model
 performance::r2_bayes(red_model)
 # Bayesian R2 with Compatibility Interval
-
-# Conditional R2: 0.279 (95% CI [0.272, 0.286])
-# Marginal R2: 0.265 (95% CI [0.253, 0.276])
+# 
+# Conditional R2: 0.279 (95% CI [0.271, 0.286])
+# Marginal R2: 0.266 (95% CI [0.254, 0.277])
 
 
 #### repeatability of arrival (leader versus follower)
@@ -691,66 +755,13 @@ residual_variance <- pi^2 / 3
 repeatability <- pit_var / (pit_var + residual_variance)
 repeatability
 
-# [1] 0.02213408
+# [1] 0.0219684
 
 # same result as above!
-save.image(file="image_final.RData")
-load(file="image_final.RData")
 
-# #Calculate CI
-# rethinking::HPDI(repeatability, prob = 0.95)
-# # |0.95      0.95| 
-# #Does not work
-# 
-# #######My suggestion:
-# #> ---- Extract the variance components and calculate repeatability ----
-# library(tidybayes)
-# get_variables(red_model)#This just tells us what parameters we can pull from the model
-# #Extract the variance components
-# post.data = red_model %>% spread_draws(sd_PIT__Intercept) 
-# #Among-individual variance
-# post.data$Va_PIT = post.data$sd_PIT__Intercept^2 # we square it because it is currently a standard deviation, and by squaring this value we turn it into a variance
-# 
-# #Within-individual variance 
-# #For Bernouilli: sigma^2 = pi^2/3
-# sigma_sq = (pi^2)/3
-# 
-# #Repeatability
-# repeatability <- post.data$Va_PIT / (post.data$Va_PIT + sigma_sq)
-# repeatability
-# hist(repeatability)
-# mean(repeatability) #same as above, with the other methods
-# 
-# #Calculate CI
-# rethinking::HPDI(repeatability, prob = 0.95)
-# # |0.95      0.95| 
-# #0.02487687 0.05688738
-# #Our value does fall within the IC
-# 
-# #This last part was inspired by the study: https://datadryad.org/stash/dataset/doi:10.25338/B88P8W
-
-
-# SW: here you could do those extra couple of analyses with the visitation data:
-
-visits_all_season <- read.csv("data/visits_all_season.csv")
-# 1) visits ~ species*season + (1|PIT)
-# this should tell use something about caching - caching species are expected to fly back and forth more often within one flock visit
-
-# 2) number of feeders visited ~ species*season + (1|PIT)
-# this will tell use about territoriality - the more territorial species should have fewer feeders that they use
-# you will need to use this data frame:
-network.pos.all.seasons
-# the 'location' are the different feeders - so you will need to find a way to summarize it with columns:
-# PIT, season, species, age, num.feeders.visited
-
-
-
-
-
-
-
-
-
+# SW: to fix your issues with the pushing, perhaps move the image_final somewhere outside of the github repository folder. I'll do the same on my end. 
+save.image(file="C:/Users/sonja/Desktop/Ground Squirrels/Student projects/Emilie Zimmer/image_final.RData")
+load(file="C:/Users/sonja/Desktop/Ground Squirrels/Student projects/Emilie Zimmer/image_final.RData")
 
 
 
