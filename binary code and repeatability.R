@@ -759,10 +759,197 @@ repeatability
 
 # same result as above!
 
+
+
+
+
+# SW: here you could do those extra couple of analyses with the visitation data:
+
+visits_all_season <- read.csv("data/visits_all_season.csv", row.names = 1)
+
+
+# 1) visits ~ species*season + (1|PIT)
+# this should tell use something about caching - caching species are expected to fly back and forth more often within one flock visit
+head(visits_all_season) #group=flock
+#visits are counts thus we consider a Poisson distribution
+library(lme4)
+glmer_visits <- glmer(visit ~ species*season + (1|PIT), family = poisson, data= visits_all_season) #the birds go eat in flocks, hence their PIT is nested in group
+# SW: hmm I see the thought why you want to include group as a random effect, but the group as we use it is essentially a random integer - I think I would run the model without it.
+
+
+summary(glmer_visits)#model failed to converge
+
+#with brm:
+library(brms)
+brm_visits <- brm(
+  visit ~ species*season + (1|PIT),
+  family = poisson,
+  data = visits_all_season,
+  chains = 2,
+  iter = 4000,
+  cores = 4,
+  seed=2
+)
+
+summary(brm_visits)
+
+
+# Family: poisson 
+# Links: mu = log 
+# Formula: visit ~ species * season + (1 | PIT) 
+# Data: visits_all_season (Number of observations: 26819) 
+# Draws: 2 chains, each with iter = 4000; warmup = 2000; thin = 1;
+# total post-warmup draws = 4000
+# 
+# Multilevel Hyperparameters:
+#   ~PIT (Number of levels: 254) 
+# Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+# sd(Intercept)     0.11      0.01     0.10     0.13 1.00     1538     2167
+# 
+# Regression Coefficients:
+#   Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+# Intercept                     0.52      0.05     0.43     0.61 1.00      551     1001
+# speciesGRETI                 -0.06      0.05    -0.17     0.05 1.00      599     1117
+# speciesMARTI                  0.09      0.06    -0.03     0.21 1.00      682     1210
+# speciesNUTHA                 -0.09      0.07    -0.23     0.05 1.00      581     1281
+# seasonspring                 -0.20      0.05    -0.29    -0.11 1.00      531     1259
+# seasonsummer                  0.03      0.07    -0.12     0.18 1.00      812     1636
+# seasonwinter                 -0.30      0.05    -0.39    -0.20 1.00      531     1009
+# speciesGRETI:seasonspring     0.09      0.06    -0.03     0.19 1.00      567     1359
+# speciesMARTI:seasonspring     0.16      0.06     0.05     0.28 1.00      746     1664
+# speciesNUTHA:seasonspring     0.24      0.08     0.08     0.40 1.00      945     1840
+# speciesGRETI:seasonsummer     0.13      0.08    -0.03     0.29 1.00      845     1698
+# speciesMARTI:seasonsummer    -0.01      0.08    -0.17     0.15 1.00      876     1843
+# speciesNUTHA:seasonsummer    -0.12      0.09    -0.29     0.05 1.00      869     1853
+# speciesGRETI:seasonwinter     0.04      0.06    -0.07     0.15 1.00      585     1219
+# speciesMARTI:seasonwinter     0.18      0.05     0.07     0.28 1.00      603     1097
+# speciesNUTHA:seasonwinter     0.25      0.07     0.12     0.38 1.00      735     1487
+# 
+# Draws were sampled using sampling(NUTS). For each parameter, Bulk_ESS
+# and Tail_ESS are effective sample size measures, and Rhat is the potential
+# scale reduction factor on split chains (at convergence, Rhat = 1).
+
+# check for over/under dispsersion
+
+mean_visit <- mean(visits_all_season$visit)
+var_visit <- var(visits_all_season$visit)
+overdispersion_ratio <- var_visit / mean_visit
+overdispersion_ratio
+# [1] 0.7237296
+
+# seems okay - we can stick with a poisson
+
+pp_check(brm_visits, ndraws = 100)
+
+# again - here room for some plots
+plot(conditional_effects(brm_visits), re_formula = NULL)
+
+
+# SW: looks like there are some species/season differences!
+
+
+# 2) number of feeders visited ~ species*season + (1|PIT)
+# this will tell use about territoriality - the more territorial species should have fewer feeders that they use
+# you will need to use this data frame:
+
+network.pos.all.seasons
+# the 'location' are the different feeders - so you will need to find a way to summarize it with columns:
+# PIT, season, species, age, num.feeders.visited
+
+head(network.pos.all.seasons)
+
+library(dplyr)
+subset_network.pos.all.seasons <- network.pos.all.seasons %>% select(PIT, season, species, age_in_2020, location)
+#I want to add the column "num.feeders.visited" that contains the total number of feeders each bird visited
+subset2_network.pos.all.seasons <- subset_network.pos.all.seasons %>%
+  group_by(PIT) %>%
+  mutate(num.feeders.visited = n_distinct(location)) %>%
+  ungroup()
+
+head(subset2_network.pos.all.seasons) #some rows are duplicates so I decide to use the function distinct() to eliminate this
+subset2_network.pos.all.seasons <- subset2_network.pos.all.seasons %>%
+  distinct()
+
+hist(subset2_network.pos.all.seasons$num.feeders.visited) #poisson distribution
+
+glmer_visited_feeders <- glmer(num.feeders.visited ~ species*season + (1|PIT), family = poisson, data= subset2_network.pos.all.seasons) #I no longer consider that the group is important for this question as the question is more linked to the territoriality of an individual (species) in general. What is the big picture of their territoriality?
+summary(glmer_visited_feeders)
+#the model failed to converge so I will try with brm
+
+brm_visited_feeders <- brm(
+  num.feeders.visited ~ species*season + (1|PIT),
+  family = poisson,
+  data =subset2_network.pos.all.seasons,
+  chains = 2,
+  iter = 4000,
+  cores = 4,
+  save_pars = save_pars(all = TRUE)
+)
+
+# check for over/under dispsersion
+
+mean_feeders_visited <- mean(subset2_network.pos.all.seasons$num.feeders.visited)
+var_feeders_visited <- var(subset2_network.pos.all.seasons$num.feeders.visited)
+overdispersion_ratio <- var_feeders_visited / mean_feeders_visited
+overdispersion_ratio
+# [1] 0.5448532
+
+# our model is underdispersed
+
+# we try a binomial model with the maximum number of feeders included as trials (=6)
+brm_visited_feeders <- brm(
+  num.feeders.visited | trials(6) ~ species * season + (1 | PIT),
+  family = binomial(),
+  data = subset2_network.pos.all.seasons,
+  chains = 2,
+  iter = 4000,
+  cores = 4,
+  save_pars = save_pars(all = TRUE)
+)
+
+summary(brm_visited_feeders)
+# 
+# Family: binomial 
+# Links: mu = logit 
+# Formula: num.feeders.visited | trials(6) ~ species * season + (1 | PIT) 
+# Data: subset2_network.pos.all.seasons (Number of observations: 683) 
+# Draws: 2 chains, each with iter = 4000; warmup = 2000; thin = 1;
+# total post-warmup draws = 4000
+# 
+# Multilevel Hyperparameters:
+#   ~PIT (Number of levels: 234) 
+# Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+# sd(Intercept)     0.64      0.05     0.54     0.75 1.00     1862     2705
+# 
+# Regression Coefficients:
+#   Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+# Intercept                    -1.07      0.27    -1.60    -0.55 1.01      907     1576
+# speciesGRETI                  0.34      0.30    -0.24     0.95 1.01      905     1716
+# speciesMARTI                  0.55      0.39    -0.19     1.33 1.00     1219     1724
+# speciesNUTHA                  0.03      0.54    -1.06     1.05 1.00     1562     2283
+# seasonspring                 -0.00      0.29    -0.58     0.57 1.01      958     1734
+# seasonsummer                  0.17      0.35    -0.54     0.85 1.01      990     1787
+# seasonwinter                  0.07      0.28    -0.46     0.61 1.01      916     1682
+# speciesGRETI:seasonspring    -0.06      0.33    -0.70     0.58 1.01     1021     1858
+# speciesMARTI:seasonspring    -0.04      0.43    -0.86     0.80 1.00     1409     2242
+# speciesNUTHA:seasonspring    -0.33      0.69    -1.68     1.02 1.00     1963     2737
+# speciesGRETI:seasonsummer    -0.24      0.38    -1.00     0.51 1.01     1022     1769
+# speciesMARTI:seasonsummer    -0.23      0.49    -1.19     0.74 1.01     1273     2063
+# speciesNUTHA:seasonsummer    -0.33      0.62    -1.52     0.86 1.00     1577     2616
+# speciesGRETI:seasonwinter    -0.13      0.31    -0.74     0.49 1.01      977     1658
+# speciesMARTI:seasonwinter    -0.06      0.39    -0.81     0.70 1.00     1198     2038
+# speciesNUTHA:seasonwinter    -0.28      0.59    -1.44     0.86 1.01     1630     2534
+# 
+# Draws were sampled using sampling(NUTS). For each parameter, Bulk_ESS
+# and Tail_ESS are effective sample size measures, and Rhat is the potential
+# scale reduction factor on split chains (at convergence, Rhat = 1).
+plot(conditional_effects(brm_visited_feeders), re_formula = NULL)
+pp_check(brm_visits, ndraws = 100)
+
+
 # SW: to fix your issues with the pushing, perhaps move the image_final somewhere outside of the github repository folder. I'll do the same on my end. 
 save.image(file="C:/Users/sonja/Desktop/Ground Squirrels/Student projects/Emilie Zimmer/image_final.RData")
 load(file="C:/Users/sonja/Desktop/Ground Squirrels/Student projects/Emilie Zimmer/image_final.RData")
-
 
 
 
