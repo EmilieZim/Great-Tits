@@ -2,7 +2,9 @@
 
 # SW: here you could do those extra couple of analyses with the visitation data:
 
-visits_all_season <- read.csv("data/visits_all_season.csv")
+visits_all_season <- read.csv("data/visits_all_season.csv", row.names = 1)
+
+
 # 1) visits ~ species*season + (1|PIT)
 # this should tell use something about caching - caching species are expected to fly back and forth more often within one flock visit
 head(visits_all_season) #group=flock
@@ -13,52 +15,6 @@ glmer_visits <- glmer(visit ~ species*season + (1|PIT), family = poisson, data= 
 
 
 summary(glmer_visits)#model failed to converge
-
-
-# Generalized linear mixed model fit by maximum likelihood (Laplace Approximation) ['glmerMod']
-# Family: poisson  ( log )
-# Formula: visit ~ species * season + (1 | PIT)
-# Data: visits_all_season
-# 
-# AIC      BIC   logLik deviance df.resid 
-# 116892.9 117039.6 -58429.4 116858.9    41512 
-# 
-# Scaled residuals: 
-#   Min      1Q  Median      3Q     Max 
-# -1.1920 -0.4867 -0.2340  0.2246  9.6735 
-# 
-# Random effects:
-#   Groups Name        Variance Std.Dev.
-# PIT    (Intercept) 0.01886  0.1373  
-# Number of obs: 41529, groups:  PIT, 254
-# 
-# Fixed effects:
-#   Estimate Std. Error z value Pr(>|z|)    
-# (Intercept)                0.57636    0.03793  15.194  < 2e-16 ***
-#   speciesGRETI              -0.12612    0.04478  -2.817 0.004854 ** 
-#   speciesMARTI               0.02299    0.05524   0.416 0.677315    
-# speciesNUTHA              -0.12235    0.06718  -1.821 0.068586 .  
-# seasonspring              -0.24452    0.03798  -6.439 1.20e-10 ***
-#   seasonsummer               0.10090    0.05410   1.865 0.062197 .  
-# seasonwinter              -0.34759    0.03663  -9.489  < 2e-16 ***
-#   speciesGRETI:seasonspring  0.13216    0.04540   2.911 0.003600 ** 
-#   speciesMARTI:seasonspring  0.18981    0.04635   4.096 4.21e-05 ***
-#   speciesNUTHA:seasonspring  0.24407    0.06412   3.807 0.000141 ***
-#   speciesGRETI:seasonsummer  0.10800    0.05876   1.838 0.066050 .  
-# speciesMARTI:seasonsummer -0.06689    0.05932  -1.128 0.259482    
-# speciesNUTHA:seasonsummer -0.20713    0.06468  -3.203 0.001362 ** 
-#   speciesGRETI:seasonwinter  0.10933    0.04326   2.527 0.011503 *  
-#   speciesMARTI:seasonwinter  0.26787    0.04124   6.496 8.27e-11 ***
-#   speciesNUTHA:seasonwinter  0.32256    0.05149   6.265 3.73e-10 ***
-#   ---
-#   Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
-# 
-# Correlation matrix not shown by default, as p = 16 > 12.
-# Use print(x, correlation=TRUE)  or
-# vcov(x)        if you need it
-# 
-# optimizer (Nelder_Mead) convergence code: 0 (OK)
-# Model failed to converge with max|grad| = 0.0116038 (tol = 0.002, component 1)
 
 #with brm:
 library(brms)
@@ -77,33 +33,33 @@ summary(brm_visits)
 # Family: poisson 
 # Links: mu = log 
 # Formula: visit ~ species * season + (1 | PIT) 
-# Data: visits_all_season (Number of observations: 41529) 
+# Data: visits_all_season (Number of observations: 26819) 
 # Draws: 2 chains, each with iter = 4000; warmup = 2000; thin = 1;
 # total post-warmup draws = 4000
 # 
 # Multilevel Hyperparameters:
 #   ~PIT (Number of levels: 254) 
 # Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
-# sd(Intercept)     0.14      0.01     0.12     0.16 1.00      777     1636
+# sd(Intercept)     0.11      0.01     0.10     0.13 1.00     1331     2220
 # 
 # Regression Coefficients:
 #   Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
-# Intercept                     0.57      0.04     0.50     0.65 1.00      508     1168
-# speciesGRETI                 -0.12      0.05    -0.22    -0.03 1.00      475     1264
-# speciesMARTI                  0.02      0.06    -0.08     0.14 1.00      448      948
-# speciesNUTHA                 -0.12      0.07    -0.26     0.02 1.00      653     1420
-# seasonspring                 -0.24      0.04    -0.32    -0.17 1.00      551     1001
-# seasonsummer                  0.10      0.05    -0.01     0.21 1.00      683     1040
-# seasonwinter                 -0.35      0.04    -0.42    -0.27 1.00      517     1262
-# speciesGRETI:seasonspring     0.13      0.05     0.04     0.23 1.00      619     1073
-# speciesMARTI:seasonspring     0.19      0.05     0.10     0.28 1.00      657     1538
-# speciesNUTHA:seasonspring     0.24      0.06     0.11     0.37 1.00     1025     2027
-# speciesGRETI:seasonsummer     0.11      0.06    -0.00     0.23 1.00      720     1471
-# speciesMARTI:seasonsummer    -0.06      0.06    -0.18     0.05 1.00      739     1475
-# speciesNUTHA:seasonsummer    -0.21      0.06    -0.33    -0.07 1.00      826     1684
-# speciesGRETI:seasonwinter     0.11      0.04     0.02     0.20 1.00      543     1237
-# speciesMARTI:seasonwinter     0.27      0.04     0.18     0.35 1.00      545     1439
-# speciesNUTHA:seasonwinter     0.32      0.05     0.22     0.42 1.00      798     1494
+# Intercept                     0.52      0.05     0.43     0.61 1.01      435      980
+# speciesGRETI                 -0.06      0.05    -0.16     0.05 1.01      469      950
+# speciesMARTI                  0.09      0.06    -0.02     0.21 1.01      458     1149
+# speciesNUTHA                 -0.09      0.07    -0.23     0.05 1.01      572     1325
+# seasonspring                 -0.20      0.05    -0.29    -0.11 1.01      460     1069
+# seasonsummer                  0.03      0.07    -0.11     0.17 1.00      801     1058
+# seasonwinter                 -0.30      0.05    -0.39    -0.21 1.01      470     1157
+# speciesGRETI:seasonspring     0.08      0.06    -0.02     0.19 1.01      494     1263
+# speciesMARTI:seasonspring     0.16      0.06     0.05     0.28 1.01      590     1591
+# speciesNUTHA:seasonspring     0.24      0.08     0.07     0.40 1.00      858     1983
+# speciesGRETI:seasonsummer     0.13      0.08    -0.02     0.28 1.00      733     1260
+# speciesMARTI:seasonsummer    -0.01      0.08    -0.18     0.15 1.00      870     1601
+# speciesNUTHA:seasonsummer    -0.12      0.09    -0.29     0.04 1.00      885     1316
+# speciesGRETI:seasonwinter     0.04      0.05    -0.07     0.14 1.01      473     1131
+# speciesMARTI:seasonwinter     0.18      0.05     0.07     0.28 1.00      526     1482
+# speciesNUTHA:seasonwinter     0.25      0.07     0.12     0.38 1.00      655     1802
 # 
 # Draws were sampled using sampling(NUTS). For each parameter, Bulk_ESS
 # and Tail_ESS are effective sample size measures, and Rhat is the potential
@@ -124,7 +80,7 @@ p <- length(fixef(brm_visits)) # Number of fixed effects in the model
 # Compute the dispersion statistic
 dispersion_ratio <- sum_squared_residuals / (n - p)
 dispersion_ratio
-# 9.97279
+# 9.689053
 # our dispersion ratio indicates that the variance is greater than the mean -> overdispersion
 
 
@@ -136,8 +92,8 @@ brm_visits_2 <- brm(
   family = negbinomial(),
   data = visits_all_season,
   chains = 2,
-  prior=   c(prior(normal(0, 1), class= Intercept),
-             prior(normal(0,  2), class= b)),
+  prior=   c(prior(normal(0, 2), class= Intercept),
+             prior(normal(0,  5), class= b)),
   control = list(adapt_delta = .99), # set higher because of divergent transitions
   iter = 4000,
   cores = 4

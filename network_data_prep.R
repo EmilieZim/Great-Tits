@@ -542,6 +542,19 @@ sp_class_season <- rbind(sp_class_summ, sp_class_aut, sp_class_wint, sp_class_sp
 
 visits_all_season <- rbind(summer.visit.df, autumn.visit.df, winter.visit.df, spring.visit.df)
 
+# only retain the max number of visits for each bird in each group
+
+# Load the dplyr package
+library(dplyr)
+
+# Assuming your data frame is called 'df'
+visits_all_season <- visits_all_season %>%
+  dplyr::group_by(PIT, group) %>%
+  filter(visit == max(visit)) %>%
+  ungroup()
+
+
+
 write.csv(visits_all_season, file="data/visits_all_season.csv")
 read.csv("data/visits_all_season.csv")
 # 4) calculate network position -------------------------------------------
