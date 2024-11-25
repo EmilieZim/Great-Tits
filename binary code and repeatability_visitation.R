@@ -815,7 +815,43 @@ em5 <- emmeans(red_model, ~ species | season)
 pairs(em5)
 
 
+# SW:
 
+# Compute marginal means for the species variable
+species_emm <- emmeans(red_model, ~ species)
+
+# Pairwise comparisons between species levels
+species_contrasts <- contrast(species_emm, method = "pairwise")
+species_contrasts
+
+# Marginal means for species by season
+species_season_emm <- emmeans(red_model, ~ species | season)
+
+# Pairwise comparisons within each season
+species_season_contrasts <- contrast(species_season_emm, method = "pairwise")
+species_season_contrasts
+
+# How to interpret:
+# estimate: difference in marginal means
+# if the credible interval does not include 0, two groups are considered significantly different
+
+
+# Plot the marginal means for species
+plot(species_emm)
+
+# Plot pairwise comparisons for species across seasons
+plot(species_season_emm)
+
+
+# Extract contrasts as a data frame
+species_season_contrasts_df <- as.data.frame(species_season_contrasts)
+head(species_season_contrasts_df)
+
+# you get from log odds to odds by expontiating:
+exp(species_season_contrasts_df$estimate)
+# an odds ratio of 1.67 means that e.g. BLUTI are 1.67 times more likely to be the leader compared to GRETI
+
+# I would report odds ratios. If you were interested in probabilities for a certain species to be a leader, you calculate as: probability = exp(log odds) / (1 + exp(log odds))
 
 
 
