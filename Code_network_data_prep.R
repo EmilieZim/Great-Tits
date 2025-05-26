@@ -634,5 +634,27 @@ network.pos.all.seasons <- rbind.data.frame(network.pos.summer, network.pos.autu
 network.pos.all.seasons$group.size <- as.numeric(network.pos.all.seasons$group.size)
 network.pos.all.seasons$leader.follower <- as.factor(network.pos.all.seasons$leader.follower)
 
+# we need to add one column on the species prevalence in each flock
+# Add species counts per flock
+species_counts <- network.pos.all.seasons %>%
+  group_by(group, species) %>%
+  summarise(n_species = n(), .groups = "drop")
+
+# Total birds per flock
+flock_sizes <- network.pos.all.seasons %>%
+  group_by(group) %>%
+  summarise(flock_size = n(), .groups = "drop")
+
+# Join and compute proportion
+species_props <- left_join(species_counts, flock_sizes, by = "group") %>%
+  mutate(species_prop = n_species / flock_size)
+
+# Add this back to your main data
+network.pos.all.seasons <- network.pos.all.seasons %>%
+  left_join(species_props, by = c("group", "species"))
+
+network.pos.all.seasons$leader.follower <- as.factor(network.pos.all.seasons$leader.follower)
+
+
 write.csv(network.pos.all.seasons, file="data/leader_follower_data_all_seasons.csv")
 
