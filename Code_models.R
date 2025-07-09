@@ -6,35 +6,32 @@
 
 # 1.1) Load libraries -----------------------------------------------------
 
-# elephant: please move all the libraries up here that you use throuhgout (I have done it up to part 3) - and best practise to order libraries alphabetically (although that's just aesthetics)
-
 ##Library
 library(asnipe)
-library(ggplot2)
-library(datawizard)
-library(lme4)
-library(lmerTest)
 library(brms)
-library(tidybayes)
-library(dbplyr)
-library(rstan)
-library(devtools)
-library(rethinking)
 library(car)
-library(rptR)
-library(data.table)
-library(psych)
 library(corrplot)
-library(report)
-library(performance)
-library(brms)
+library(data.table)
+library(datawizard)
+library(dbplyr)
+library(devtools)
 library(dplyr)
-library(tidyr)
-library(ggplot2)
 library(emmeans)
 library(flextable)
-library(dplyr)
-
+library(ggplot2)
+library(ggpubr)
+library(lme4)
+library(lmerTest)
+library(officer)
+library(performance)
+library(psych)
+library(report)
+library(rethinking)
+library(rptR)
+library(rstan)
+library(stringr)
+library(tidybayes)
+library(tidyr)
 
 
 # 1.2) Extract order of arrival at feeders --------------------------------
@@ -50,27 +47,26 @@ head(network.pos.all.seasons)
 
 
 
-# elephant: please add some details on what the different columns are
+#Some details on what the different columns are
 names(network.pos.all.seasons)
 
-# "PIT"
-# "degree"
-# "Date.Time"
-# "Antenna"
-# "location"
-# "week"
-# "group"
-# "visit.duration"  
-# "leader.follower" 
-# "species"         
-# "age_in_2020"
-# "season"         
-# "betweenness"
-# "group.size"
-# "group.size.log"
-# "n_species"
-# "flock_size"
-# "species_prop" 
+# "PIT" : 10 digit alphanumeric code unique to each individual
+# "degree": the value of degree centrality for each individual
+# "Date.Time": yymmddHHMMSS
+# "Antenna": A for auxiliary, M for main
+# "location":  Mill1-Mill6 (6 feeders around study area)
+# "week": experimental week within each season (during each week, we collected data for 48 hours). summer has 14 weeks, all other season 3 weeks
+# "group": the number of the flock
+# "visit.duration": the time spent on the feeder in seconds  
+# "leader.follower": the role within the mixed flock (leader or follower) 
+# "species": the 4 studied species (GRETI : Great tits, BLUTI: Blue tits, MARTI: Marsh tits, NUTHA: Nuthaches)         
+# "age_in_2020": adults or juveniles
+# "season": summer, spring, winter, autumn         
+# "betweenness": the value of the betweenness centrality for each individual
+# "group.size": the number of individuals present during the feeder visit of a specific individual
+# "n_species": the number of species within each flock/group
+# "flock_size": total birds per flock
+# "species_prop": the proportion of species within a flock (n_species/flock_size)
 
 
 # remove group sizes of 1 
@@ -203,7 +199,16 @@ R2 <- performance::r2_bayes(glob_model)
 summary_glob_model <- summary(glob_model)
 fixed_effects <- as.data.frame(summary_glob_model$fixed)
 fixed_effects <- tibble::rownames_to_column(fixed_effects, var = "Term")
-
+fixed_effects$Term <- c("Intercept", "Great tit", "Marsh tit", "Nuthatch",
+                   "Spring","Summer", "Winter",
+                   "Age (Juvenile)", "Betweenness", "Degree",
+                   "Great tit x Spring", "Marsh tit x Spring", "Nuthatch x Spring", 
+                   "Great tit x Summer", "Marsh tit x Summer", "Nuthatch x Summer", 
+                   "Great tit x Winter", "Marsh tit x Winter", "Nuthatch x Winter", 
+                   "Spring x Age(Juvenile)", "Summer x Age(Juvenile)", "Winter x Age(Juvenile)" )
+fixed_effects <- fixed_effects[, 1:(ncol(fixed_effects) - 2)]
+fixed_effects <- fixed_effects %>%
+  dplyr::mutate(across(where(is.numeric), ~ round(.x, 2)))
 
 library(flextable)
 
@@ -222,7 +227,6 @@ print(doc_glob_model, target = "fixed_effects_final_glob_model.docx")
 
 # 2.5) Plot ---------------------------------------------------------------
 
-# elephant: need to adjust the plots
 ##plot of the summary output of the glob_model
 library(ggpubr)
 network.pos.all.seasons$season <- as.factor(network.pos.all.seasons$season)
@@ -244,55 +248,113 @@ my_colors_sp <- c("BLUTI" = "#b94b75",
 my_colors_age <- c("adult" = "#9a5ea1", 
                    "juvenile" = "#98823c")
 
+
+
 ggarrange(
   
-  glob_model_conditional_effects$`group.size:species` +
-    labs(x= "Flock size", y= "Leader status") +
-    ylim(c(0.0, 0.9))+
-    theme_bw() +
-    theme(legend.background=element_blank()) +
-    theme(legend.title=element_blank(), legend.position = c(0.78, 0.6), axis.title.x = element_blank())+
-    scale_fill_manual(values = my_colors_sp, breaks=c("BLUTI", "GRETI", "MARTI", "NUTHA"), labels=c("Blue tits", "Great tits", "Marsh tits", "Nuthaches"))+
-    scale_color_manual(values = my_colors_sp, breaks=c("BLUTI", "GRETI", "MARTI", "NUTHA"), labels=c("Blue tits", "Great tits", "Marsh tits", "Nuthaches")),
+  #First plot: interaction between species and season
+  {
+    p <- glob_model_conditional_effects$`species:season`
+    for (i in seq_along(p$layers)) {
+      if (inherits(p$layers[[i]]$geom, "GeomPoint")) {
+        p$layers[[i]]$aes_params$size <- 2.5  # smaller points
+      }
+    }
+    p +
+      aes(x = season, shape = species, color = species, fill = species) +
+      scale_shape_manual(
+        values = c("BLUTI" = 16, "GRETI" = 18, "MARTI" = 15, "NUTHA" = 17),
+        labels = c("BLUTI" = "Blue tits", "GRETI" = "Great tits", "MARTI" = "Marsh tits", "NUTHA" = "Nuthatches"),
+        name = NULL
+      ) +
+      scale_color_manual(
+        values = my_colors_sp,
+        labels = c("BLUTI" = "Blue tits", "GRETI" = "Great tits", "MARTI" = "Marsh tits", "NUTHA" = "Nuthatches"),
+        name = NULL
+      ) +
+      scale_fill_manual(
+        values = my_colors_sp,
+        labels = c("BLUTI" = "Blue tits", "GRETI" = "Great tits", "MARTI" = "Marsh tits", "NUTHA" = "Nuthatches"),
+        name = NULL
+      ) +
+      scale_x_discrete(
+        limits = c("spring", "summer", "autumn", "winter"),
+        labels = c("spring" = "Spring", "summer" = "Summer", "autumn" = "Autumn", "winter" = "Winter")
+      ) +
+      labs(x = "Season", y = "Leader role") +
+      ylim(c(0.0, 0.9)) +
+      theme(
+        legend.position = "bottom",
+        legend.title = element_text(),
+        axis.title.x = element_blank()
+      )
+  },
   
+  #Second plot: betweenness centrality
+  {
+    ce <- conditional_effects(glob_model, effects = "betweenness")$betweenness
+    
+    ggplot(ce, aes(x = betweenness, y = estimate__)) +
+      geom_ribbon(aes(ymin = lower__, ymax = upper__), fill = "grey80") +
+      geom_line(color = "black", size= 0.5) +
+      labs(x = "Betweenness centrality", y = "") +
+      ylim(0.0, 0.9) +
+      theme_bw()
+  },
   
-  glob_model_conditional_effects$degree +
-    labs(x= "Degree centrality", y= "Leader status") +
-    labs(y= "") +
-    ylim(c(0.0, 0.9))+
-    theme_bw(),
+  # Third plot: interaction between season and age
+  {
+    p <- glob_model_conditional_effects$`season:age_in_2020`
+    for (i in seq_along(p$layers)) {
+      if (inherits(p$layers[[i]]$geom, "GeomPoint")) {
+        p$layers[[i]]$aes_params$size <- 2.5
+      }
+    }
+    p +
+      labs(y = "Leader role") +
+      ylim(c(0.0, 0.9)) +
+      theme(
+        legend.background = element_blank(),
+        legend.position = "bottom",
+        legend.title = element_blank(),
+        axis.title.x = element_blank()
+      ) +
+      scale_fill_manual(
+        values = my_colors_age,
+        breaks = c("adult", "juvenile"),
+        labels = c("Adults", "Juveniles")
+      ) +
+      scale_color_manual(
+        values = my_colors_age,
+        breaks = c("adult", "juvenile"),
+        labels = c("Adults", "Juveniles")
+      ) +
+      scale_x_discrete(
+        limits = c("spring", "summer", "autumn", "winter"),
+        labels = c("spring" = "Spring", "summer" = "Summer", "autumn" = "Autumn", "winter" = "Winter")
+      )
+  },
   
-  glob_model_conditional_effects$`group.size:age_in_2020` +
-    labs(x= "Flock size", y= "Leader status") +
-    labs(y= "Leader status") +
-    ylim(c(0.0, 0.9))+
-    theme_bw() +
-    theme(legend.background=element_blank())+
-    theme(legend.title=element_blank(), legend.position = c(0.78, 0.6), axis.title.x = element_blank())+
-    scale_fill_manual(values = my_colors_age, breaks=c("adult", "juvenile"), labels=c("Adults", "Juveniles"))+
-    scale_color_manual(values = my_colors_age, breaks=c("adult", "juvenile"), labels=c("Adults", "Juveniles")),
+  #Fourth plot: degree centrality
+  {
+    ce_degree <- glob_model_conditional_effects$degree$data
+    
+      ggplot(ce_degree, aes(x = degree, y = estimate__)) +
+      geom_ribbon(aes(ymin = lower__, ymax = upper__), fill = "grey80", alpha = 0.5) +  # CI ribbon in grey
+      geom_line(color = "black", size = 0.5) +                                          # main curve in black
+      labs(x = "Degree centrality", y = "") +
+      ylim(0, 0.9) +
+      theme_bw()
+  },
   
-  glob_model_conditional_effects$betweenness +
-    labs(x= "Betweenness centrality", y= "Leader status") +
-    labs(y= "") +
-    ylim(c(0.0, 0.9))+
-    theme_bw(),
-  
-  glob_model_conditional_effects$`group.size:season`+
-    labs(x= "Flock size", y= "Leader status") +
-    labs(y = "Leader status") +
-    ylim(c(0.0, 0.9))+
-    theme_bw() +
-    theme(legend.background=element_blank())+
-    theme(legend.title=element_blank(), legend.position = c(0.78, 0.6))+
-    scale_fill_manual(values = my_colors, breaks=c("autumn", "spring", "summer", "winter"), labels=c("Autumn", "Spring", "Summer", "Winter"))+
-    scale_color_manual(values = my_colors, breaks=c("autumn", "spring", "summer", "winter"), labels=c("Autumn", "Spring", "Summer", "Winter")),
-  
-  
-  #legend="right",
-  common.legend = FALSE,
-  labels= c("a", "d", "b", "e", "c"),
-  ncol = 2, nrow = 3)
+  labels = c("a", "c", "b", "d"),
+  ncol = 2, nrow = 2,
+  common.legend = FALSE
+)
+
+
+
+
 
 
 #display.brewer.all()
@@ -421,7 +483,18 @@ emm_table <- species_season_contrasts_df %>%
 emm_table$prob_emm <- (exp(emm_table$estimate) / (1 + exp(emm_table$estimate)))*100
 
 #extract the dataframe into a table for Word
-
+species_names <- c(
+  "BLUTI" = "Blue tit",
+  "GRETI" = "Great tit",
+  "MARTI" = "Marsh tit",
+  "NUTHA" = "Nuthatch"
+)
+library(stringr)
+emm_table <- emm_table %>%
+  mutate(contrast = str_replace_all(contrast, species_names))
+colnames(emm_table) <- c("Contrast", "Season", "Estimate", "Lower_HPD", "Upper_HPD", "Odds", "Probability")
+emm_table <- emm_table %>%
+  dplyr::mutate(across(where(is.numeric), ~ round(.x, 2)))
 
 pairwise_table <- flextable(emm_table) %>%
   autofit() %>%
@@ -432,7 +505,7 @@ library(officer)
 doc_pariwise_comparisons <- read_docx() %>%
   body_add_flextable(pairwise_table)
 
-print(doc_pariwise_comparisons, target = "species_season_model_summary.docx")
+print(doc_pariwise_comparisons, target = "pairwise_contrasts_glob_model.docx")
 
 
 # 2.9) Calculate individual repeatability ---------------------------------
@@ -460,7 +533,7 @@ repeatability
 
 # [1] 0.04321718
 
-# same result as above!
+# same result as above!:
 
 
 # Extract the variance components and calculate repeatability
@@ -484,9 +557,9 @@ mean(repeatability) #same as above, with the other methods
 # 0.04345461
 
 #Calculate CI
-# elephant: please rerun this, my package isn't properly isntalled apparently
 rethinking::HPDI(repeatability, prob = 0.95)
-
+#|0.95             0.95| 
+#  0.03059087    0.05734588 
 
 #This last part was inspired by the study: https://datadryad.org/stash/dataset/doi:10.25338/B88P8W
 
@@ -494,63 +567,80 @@ rethinking::HPDI(repeatability, prob = 0.95)
 # 2.10) Extract flock sizes in each season -------------------------------------------------------------------
 
 #how many flocks there are in each season
-# elephant: please only use the groups with sizes 2+ and use the network_pos_all_season isntead of the visitation one
-visits_all_season %>%
+#All groups contain at least 2 individuals
+
+network.pos.all.seasons %>%
   dplyr::group_by(season) %>%
   dplyr::summarise(num_groups = n_distinct(group))
 
 # # A tibble: 4 × 2
 # season num_groups
 # <chr>       <int>
-#   1 autumn       1556
-# 2 spring       2363
-# 3 summer       2098
-# 4 winter       2844
+# 1 autumn       878
+# 2 spring       1473
+# 3 summer       1230
+# 4 winter       2271
 
 #how many individuals within each flock in each season?
-visits_all_season %>%
-  filter(season == "summer")%>%
-  count(group) %>%
-  summarise(min_flock_size = min(n), max_flock_size = max(n))
+network.pos.all.seasons %>%
+  filter(season == "summer", flock_size >= 2) %>%
+  distinct(group, flock_size) %>%
+  summarise(
+    min_flock_size = min(flock_size),
+    max_flock_size = max(flock_size)
+  )
 
 # min_flock_size max_flock_size
-# 1              1             15
+#  4              44
 
-visits_all_season %>%
-  filter(season == "autumn")%>%
-  count(group) %>%
-  summarise(min_flock_size = min(n), max_flock_size = max(n))
-
-# min_flock_size max_flock_size
-# 1              1             11
-
-visits_all_season %>%
-  filter(season == "winter")%>%
-  count(group) %>%
-  summarise(min_flock_size = min(n), max_flock_size = max(n))
+network.pos.all.seasons %>%
+  filter(season == "autumn", flock_size >= 2) %>%
+  distinct(group, flock_size) %>%
+  summarise(
+    min_flock_size = min(flock_size),
+    max_flock_size = max(flock_size)
+  )
 
 # min_flock_size max_flock_size
-# 1              1             37
+# 5              45           
 
-visits_all_season %>%
-  filter(season == "spring")%>%
-  count(group) %>%
-  summarise(min_flock_size = min(n), max_flock_size = max(n))
+network.pos.all.seasons %>%
+  filter(season == "winter", flock_size >= 2) %>%
+  distinct(group, flock_size) %>%
+  summarise(
+    min_flock_size = min(flock_size),
+    max_flock_size = max(flock_size)
+  )
 
 # min_flock_size max_flock_size
-# 1              1             22
+# 2             45
+
+network.pos.all.seasons %>%
+  filter(season == "spring", flock_size >= 2) %>%
+  distinct(group, flock_size) %>%
+  summarise(
+    min_flock_size = min(flock_size),
+    max_flock_size = max(flock_size)
+  )
+
+# min_flock_size max_flock_size
+# 3            45
 
 
-# 3) Visitation rates ------------------------------------------------------
+# 3) territoriality  ------------------------------------------------------
 
+# 3.1) visitation rates ----------------------------------------------------
 # here we look at potential caching behaviour of different species assuming that for caching, they would be flying back and forth more often
 visits_all_season <- read.csv("data/visits_all_season.csv", row.names = 1)
 
 
 colnames(visits_all_season)
-# elephant: please list and explain the column names
+#PIT: 10 digit alphanumeric code unique to each individual
+#visit: the number of visits of each bird within each flock
+#group: the number of the flock
+#season: the 4 studied seasons 
+#visit.duration: the time spent on a feeder in seconds
 
-# 3.1) vistation rates ----------------------------------------------------
 
 
 # we first model visits ~ species*season + (1|PIT)
@@ -631,6 +721,15 @@ visits_conditional_effects <- plot(conditional_effects(brm_visits), re_formula =
 summary_brm_visits <- summary(brm_visits)
 fixed_effects <- as.data.frame(summary_brm_visits$fixed)
 fixed_effects <- tibble::rownames_to_column(fixed_effects, var = "Term")
+fixed_effects$Term <- c("Intercept", "Great tit", "Marsh tit", "Nuthatch",
+                        "Spring","Summer", "Winter",
+                        "Great tit x Spring", "Marsh tit x Spring", "Nuthatch x Spring", 
+                        "Great tit x Summer", "Marsh tit x Summer", "Nuthatch x Summer", 
+                        "Great tit x Winter", "Marsh tit x Winter", "Nuthatch x Winter" )
+
+fixed_effects <- fixed_effects[, 1:(ncol(fixed_effects) - 2)]
+fixed_effects <- fixed_effects %>%
+  dplyr::mutate(across(where(is.numeric), ~ round(.x, 2)))
 
 
 library(flextable)
@@ -670,69 +769,58 @@ exp(fixef(brm_visits))
 # speciesNUTHA:seasonwinter 1.2861171  1.068658 1.1301792 1.4592192
 
 
-#creating plot
-library(ggpubr)
-levels(visits_all_season$season)
-my_colors <- c("spring" = "#56ae6c", 
-               "summer" = "#8960b3", 
-               "winter" = "#b0923b", 
-               "autumn" = "#ba495b")
-
-ggarrange(
-  
-  glob_model_conditional_effects$`species:season` +
-    aes(shape = species) +
-    scale_shape_manual(values = c("BLUTI" = 16, "GRETI" = 17, "MARTI" = 15, "NUTHA" = 18) ,
-                       labels = c("Blue tits", "Great tits", "Marsh tits", "Nuthatches")) +
-    labs( y= "Leader status") + 
-    ylim(c(0.0,0.35))+
-    theme_bw() +
-    scale_fill_manual(values = my_colors, breaks=c("autumn", "spring", "summer", "winter"), labels=c("Autumn", "Spring", "Summer", "Winter"))+
-    scale_color_manual(values= my_colors, breaks=c("autumn", "spring", "summer", "winter"), labels=c("Autumn", "Spring", "Summer", "Winter")) +
-    scale_x_discrete(labels=c("BLUTI" = "Blue tits", "GRETI" = "Great tits", "MARTI" = "Marsh tits", "NUTHA" = "Nuthaches")) +
-    theme(legend.title = element_blank(), axis.title.x = element_blank()),
-  
-  feeders_conditional_effects$`species:season` +
-    aes(shape = species) +
-    scale_shape_manual(values = c("BLUTI" = 16, "GRETI" = 17, "MARTI" = 15, "NUTHA" = 18)) +
-    labs(y= "Number of visited feeders") + 
-    ylim(c(0.0,4)) +
-    theme_bw() +
-    scale_fill_manual(values= my_colors, breaks=c("autumn", "spring", "summer", "winter"), labels=c("Autumn", "Spring", "Summer", "Winter"))+
-    scale_color_manual(values= my_colors, breaks=c("autumn", "spring", "summer", "winter"), labels=c("Autumn", "Spring", "Summer", "Winter")) +
-    scale_x_discrete(labels=c("BLUTI" = "Blue tits", "GRETI" = "Great tits", "MARTI" = "Marsh tits", "NUTHA" = "Nuthaches")) +
-    theme(legend.title = element_blank(),axis.title.x = element_blank()),
-  
-  visits_conditional_effects$`species:season` +
-    aes(shape = species) +
-    scale_shape_manual(values = c("BLUTI" = 16, "GRETI" = 17, "MARTI" = 15, "NUTHA" = 18)) +
-    labs(x= "Species", y= "Number of visits") +
-    ylim(c(1.0,2.2)) +
-    theme_bw() +
-    scale_fill_manual(values= my_colors, breaks=c("autumn", "spring", "summer", "winter"), labels=c("Autumn", "Spring", "Summer", "Winter"))+
-    scale_color_manual(values= my_colors, breaks=c("autumn", "spring", "summer", "winter"), labels=c("Autumn", "Spring", "Summer", "Winter")) +
-    scale_x_discrete(labels=c("BLUTI" = "Blue tits", "GRETI" = "Great tits", "MARTI" = "Marsh tits", "NUTHA" = "Nuthaches")) +
-    theme(legend.title=element_blank()),
-  
-  
-  #legend="right",
-  common.legend = TRUE,
-  labels= c("a", "b", "c" ),
-  label.x = 0.03,   
-  label.y = 1.15,   
-  ncol = 1, nrow = 3,
-  heights = c(1.2, 1.2, 1.2) )
-
-
-
 # Compute marginal means for the species variable
 visits_species_emm <- emmeans(brm_visits, ~ species)
 visits_contrasts <- contrast(visits_species_emm, method = "pairwise")
 species_contrasts
+#contrast      estimate lower.HPD upper.HPD
+#BLUTI - GRETI    1.069     0.858    1.2688
+#BLUTI - MARTI   -0.378    -0.693   -0.0856
+#BLUTI - NUTHA   -0.987    -1.329   -0.6280
+#GRETI - MARTI   -1.447    -1.708   -1.1639
+#GRETI - NUTHA   -2.056    -2.368   -1.7341
+#MARTI - NUTHA   -0.610    -0.992   -0.2302
 
 visits_species_season_emm <- emmeans(brm_visits, ~ species | season)
 visits_species_season_contrasts <- contrast(visits_species_season_emm, method = "pairwise")
 visits_species_season_contrasts
+#season = autumn:
+#contrast      estimate lower.HPD upper.HPD
+#BLUTI - GRETI  0.05736  -0.04656   0.16824
+#BLUTI - MARTI -0.09204  -0.21538   0.02919
+#BLUTI - NUTHA  0.09354  -0.04743   0.22801
+#GRETI - MARTI -0.14913  -0.24177  -0.05982
+#GRETI - NUTHA  0.03540  -0.08175   0.14922
+#MARTI - NUTHA  0.18237   0.04712   0.30442
+
+#season = spring:
+#  contrast      estimate lower.HPD upper.HPD
+#BLUTI - GRETI -0.02844  -0.09326   0.03352
+#BLUTI - MARTI -0.25615  -0.35360  -0.16361
+#BLUTI - NUTHA -0.14711  -0.28309  -0.02180
+#GRETI - MARTI -0.22754  -0.31656  -0.13242
+#GRETI - NUTHA -0.11901  -0.24483   0.00992
+#MARTI - NUTHA  0.10760  -0.03451   0.25476
+
+#season = summer:
+#  contrast      estimate lower.HPD upper.HPD
+#BLUTI - GRETI -0.06913  -0.20519   0.04356
+#BLUTI - MARTI -0.07625  -0.21652   0.06970
+#BLUTI - NUTHA  0.21562   0.06389   0.38623
+#GRETI - MARTI -0.00689  -0.09464   0.08401
+#GRETI - NUTHA  0.28490   0.18228   0.40054
+#MARTI - NUTHA  0.29240   0.15343   0.41881
+
+#season = winter:
+#  contrast      estimate lower.HPD upper.HPD
+#BLUTI - GRETI  0.01593  -0.03709   0.07460
+#BLUTI - MARTI -0.26963  -0.34485  -0.18286
+#BLUTI - NUTHA -0.15911  -0.26173  -0.05055
+#GRETI - MARTI -0.28488  -0.36270  -0.21506
+#GRETI - NUTHA -0.17521  -0.27840  -0.07907
+#MARTI - NUTHA  0.10934  -0.00804   0.21960
+
+
 # How to interpret:
 # estimate: difference in marginal means
 # if the credible interval does not include 0, two groups are considered significantly different
@@ -747,6 +835,8 @@ head(visits_species_season_contrasts_df)
 exp(visits_species_season_contrasts_df$estimate) #thus odds are the estimates
 
 library(dplyr)
+visits_species_season_contrasts_df$odds <- exp(visits_species_season_contrasts_df$estimate)
+
 visits_emm_table <- visits_species_season_contrasts_df %>%
   select(contrast, season, estimate, lower.HPD, upper.HPD, odds) #I make a table so I can make the calculations
 #the percentage
@@ -756,6 +846,18 @@ visits_emm_table$prob_emm <- (exp(visits_emm_table$estimate) / (1 + exp(visits_e
 
 #extract the dataframe into a table for Word
 library(flextable)
+species_names <- c(
+  "BLUTI" = "Blue tit",
+  "GRETI" = "Great tit",
+  "MARTI" = "Marsh tit",
+  "NUTHA" = "Nuthatch"
+)
+library(stringr)
+visits_emm_table <- visits_emm_table %>%
+  mutate(contrast = str_replace_all(contrast, species_names))
+colnames(visits_emm_table) <- c("Contrast", "Season", "Estimate", "Lower_HPD", "Upper_HPD", "Odds", "Probability")
+visits_emm_table <- visits_emm_table %>%
+  dplyr::mutate(across(where(is.numeric), ~ round(.x, 2)))
 
 pairwise_table_visits <- flextable(visits_emm_table) %>%
   autofit() %>%
@@ -766,7 +868,7 @@ library(officer)
 doc_pariwise_comparisons_visits <- read_docx() %>%
   body_add_flextable(pairwise_table_visits)
 
-print(doc_pariwise_comparisons_visits, target = "species_season_visits_summary.docx")
+print(doc_pariwise_comparisons_visits, target = "pairwise_contrast_visitation_rate.docx")
 
 
 
@@ -875,7 +977,15 @@ summary_visited_feeders <- summary(brm_visited_feeders)
 fixed_effects <- as.data.frame(summary_visited_feeders$fixed)
 fixed_effects <- tibble::rownames_to_column(fixed_effects, var = "Term")
 
+fixed_effects$Term <- c("Intercept", "Great tit", "Marsh tit", "Nuthatch",
+                        "Spring","Summer", "Winter",
+                        "Great tit x Spring", "Marsh tit x Spring", "Nuthatch x Spring", 
+                        "Great tit x Summer", "Marsh tit x Summer", "Nuthatch x Summer", 
+                        "Great tit x Winter", "Marsh tit x Winter", "Nuthatch x Winter" )
 
+fixed_effects <- fixed_effects[, 1:(ncol(fixed_effects) - 2)]
+fixed_effects <- fixed_effects %>%
+  dplyr::mutate(across(where(is.numeric), ~ round(.x, 2)))
 library(flextable)
 
 flextable_table <- fixed_effects %>%
@@ -922,6 +1032,43 @@ feeders_contrasts
 feeders_species_season_emm <- emmeans(brm_visited_feeders, ~ species | season)
 feeders_species_season_contrasts <- contrast(feeders_species_season_emm, method = "pairwise")
 feeders_species_season_contrasts
+#season = autumn:
+#  contrast      estimate lower.HPD upper.HPD
+#BLUTI - GRETI  -0.3340    -0.931    0.2216
+#BLUTI - MARTI  -0.5416    -1.281    0.1972
+#BLUTI - NUTHA  -0.0197    -1.067    1.1106
+#GRETI - MARTI  -0.2017    -0.775    0.4000
+#GRETI - NUTHA   0.3067    -0.607    1.3340
+#MARTI - NUTHA   0.5338    -0.487    1.6158
+
+#season = spring:
+#  contrast      estimate lower.HPD upper.HPD
+#BLUTI - GRETI  -0.2790    -0.675    0.1122
+#BLUTI - MARTI  -0.5051    -1.138    0.1687
+#BLUTI - NUTHA   0.2944    -0.730    1.4666
+#GRETI - MARTI  -0.2284    -0.822    0.4007
+#GRETI - NUTHA   0.5731    -0.507    1.6753
+#MARTI - NUTHA   0.8179    -0.352    2.0688
+
+#season = summer:
+#  contrast      estimate lower.HPD upper.HPD
+#BLUTI - GRETI  -0.1019    -0.621    0.4698
+#BLUTI - MARTI  -0.3252    -1.208    0.5219
+#BLUTI - NUTHA   0.3101    -0.642    1.2914
+#GRETI - MARTI  -0.2338    -0.894    0.5185
+#GRETI - NUTHA   0.4066    -0.445    1.2689
+#MARTI - NUTHA   0.6323    -0.502    1.6735
+
+#season = winter:
+#  contrast      estimate lower.HPD upper.HPD
+#BLUTI - GRETI  -0.2117    -0.531    0.1306
+#BLUTI - MARTI  -0.4759    -1.055    0.0624
+#BLUTI - NUTHA   0.2685    -0.640    1.1171
+#GRETI - MARTI  -0.2707    -0.833    0.2187
+#GRETI - NUTHA   0.4862    -0.339    1.3377
+#MARTI - NUTHA   0.7606    -0.197    1.7510
+
+
 # How to interpret:
 # estimate: difference in marginal means
 # if the credible interval does not include 0, two groups are considered significantly different
@@ -944,6 +1091,18 @@ feeders_emm_table$prob_emm <- (exp(feeders_emm_table$estimate) / (1 + exp(feeder
 
 #extract the dataframe into a table for Word
 library(flextable)
+species_names <- c(
+  "BLUTI" = "Blue tit",
+  "GRETI" = "Great tit",
+  "MARTI" = "Marsh tit",
+  "NUTHA" = "Nuthatch"
+)
+library(stringr)
+feeders_emm_table <- feeders_emm_table %>%
+  mutate(contrast = str_replace_all(contrast, species_names))
+colnames(feeders_emm_table) <- c("Contrast", "Season", "Estimate", "Lower_HPD", "Upper_HPD", "Odds", "Probability")
+feeders_emm_table <- feeders_emm_table %>%
+  dplyr::mutate(across(where(is.numeric), ~ round(.x, 2)))
 
 pairwise_table_visited_feeders <- flextable(feeders_emm_table) %>%
   autofit() %>%
@@ -954,7 +1113,86 @@ library(officer)
 doc_pariwise_comparisons_feeders <- read_docx() %>%
   body_add_flextable(pairwise_table_visited_feeders)
 
-print(doc_pariwise_comparisons_feeders, target = "species_season_feeders.docx")
+print(doc_pariwise_comparisons_feeders, target = "pairwise_contrasts_feeders.docx")
+
+
+#creating plot
+library(ggpubr)
+levels(visits_all_season$season)
+my_colors <- c("spring" = "#56ae6c", 
+               "summer" = "#8960b3", 
+               "winter" = "#b0923b", 
+               "autumn" = "#ba495b")
+
+
+ggarrange(
+  
+
+    visits_conditional_effects$`species:season` +
+    aes(shape = species) +
+    scale_shape_manual(
+      values = c("BLUTI" = 16, "GRETI" = 18, "MARTI" = 15, "NUTHA" = 17),
+      name = "Species",
+      labels = c("BLUTI" = "Blue tits", "GRETI" = "Great tits", "MARTI" = "Marsh tits", "NUTHA" = "Nuthaches")
+    ) +
+    labs(x= NULL, y= "Number of visits") +
+    ylim(c(1.0,2.2)) +
+    theme_bw() +
+    scale_fill_manual(
+      values= my_colors, 
+      breaks=c("autumn", "spring", "summer", "winter"), 
+      labels=c("Autumn", "Spring", "Summer", "Winter"),
+      name = "Season" 
+    ) +
+    scale_color_manual(
+      values= my_colors, 
+      breaks=c("autumn", "spring", "summer", "winter"), 
+      labels=c("Autumn", "Spring", "Summer", "Winter"),
+      name = "Season"  # <- And here
+    ) +
+    scale_x_discrete(labels=c("BLUTI" = "Blue tits", "GRETI" = "Great tits", "MARTI" = "Marsh tits", "NUTHA" = "Nuthaches")) +
+    theme(
+      legend.title=element_text(),
+      plot.margin = margin(t = 20, r = 5, b = 5, l = 5)
+    ),
+  
+  feeders_conditional_effects$`species:season` +
+    aes(shape = species) +
+    scale_shape_manual(
+      values = c("BLUTI" = 16, "GRETI" = 18, "MARTI" = 15, "NUTHA" = 17),
+      name = "Species",
+      labels = c("BLUTI" = "Blue tits", "GRETI" = "Great tits", "MARTI" = "Marsh tits", "NUTHA" = "Nuthaches")
+    ) +
+    labs(y= "Number of visited feeders") + 
+    ylim(c(0.0,4)) +
+    theme_bw() +
+    scale_fill_manual(
+      values= my_colors, 
+      breaks=c("autumn", "spring", "summer", "winter"), 
+      labels=c("Autumn", "Spring", "Summer", "Winter"),
+      name = "Season"   
+    ) +
+    scale_color_manual(
+      values= my_colors, 
+      breaks=c("autumn", "spring", "summer", "winter"), 
+      labels=c("Autumn", "Spring", "Summer", "Winter"),
+      name = "Season"  
+    ) +
+    scale_x_discrete(labels=c("BLUTI" = "Blue tits", "GRETI" = "Great tits", "MARTI" = "Marsh tits", "NUTHA" = "Nuthaches")) +
+    theme(
+      legend.title = element_text(),  # show legend titles
+      axis.title.x = element_blank(),
+      plot.margin = margin(t = 5, r = 5, b = 20, l = 5)
+    ),
+  
+  common.legend = TRUE,
+  legend = "right",
+  labels= c("a", "b"),
+  label.x = 0.01,   
+  label.y = 1.02,   
+  ncol = 1, nrow = 2,
+  heights = c(1, 1.2)
+)
 
 
 # 4) Descriptive stats ----------------------------------------------------
