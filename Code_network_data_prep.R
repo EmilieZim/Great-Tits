@@ -43,6 +43,8 @@ head(species_age_sex)
 
 # run gmm function to assign birds to flocks based on their arrival times at the same feeders
 
+# NOTE: these are computationally intense - we therefore provide the objects. they can be loaded below
+
 # summer
 gmm.summer <- gmmevents(
   time = net.data.summer$Date.Time,
@@ -196,7 +198,9 @@ sp_class_summ$season <- "summer"
 # extract the data frame for the visit data
 summer.visit.df <- unique(sp_class_summ[,c("PIT", "visit", "species", "group", "season", "visit.duration")])
 # save it
-#save(summer.visit.df, file="summer.visit.df.RDA")
+summer.visit.df$group <- paste(summer.visit.df$season, summer.visit.df$group, sep="_")
+#save(summer.visit.df, file="data/summer.visit.df.RDA")
+load("data/summer.visit.df.RDA")
 
 
 # for the leader follower data, leave out the "already present". 
@@ -305,8 +309,9 @@ sp_class_aut$season <- "autumn"
 # extract the data frame for the visit data
 autumn.visit.df <- unique(sp_class_aut[,c("PIT", "visit", "species", "group", "season", "visit.duration")])
 # save it
-#save(autumn.visit.df, file="autumn.visit.df.RDA")
-
+autumn.visit.df$group <- paste(autumn.visit.df$season, autumn.visit.df$group, sep="_")
+#save(autumn.visit.df, file="data/autumn.visit.df.RDA")
+load("data/autumn.visit.df.RDA")
 
 # for the leader follower data, leave out the "already present". 
 sp_class_aut$leader.follower[sp_class_aut$leader.follower == "already.present"] <- 0
@@ -417,8 +422,9 @@ sp_class_wint$season <- "winter"
 # extract the data frame for the visit data
 winter.visit.df <- unique(sp_class_wint[,c("PIT", "visit", "species", "group", "season", "visit.duration")])
 # save it
-#save(winter.visit.df, file="winter.visit.df.RDA")
-
+winter.visit.df$group <- paste(winter.visit.df$season, winter.visit.df$group, sep="_")
+#save(winter.visit.df, file="data/winter.visit.df.RDA")
+load("data/winter.visit.df.RDA")
 
 # for the leader follower data, leave out the "already present". 
 sp_class_wint$leader.follower[sp_class_wint$leader.follower == "already.present"] <- 0
@@ -528,7 +534,9 @@ sp_class_spr$season <- "spring"
 # extract the data frame for the visit data
 spring.visit.df <- unique(sp_class_spr[,c("PIT", "visit", "species", "group", "season", "visit.duration")])
 # save it
-#save(spring.visit.df, file="spring.visit.df.RDA")
+spring.visit.df$group <- paste(spring.visit.df$season, spring.visit.df$group, sep="_")
+#save(spring.visit.df, file="data/spring.visit.df.RDA")
+load("data/spring.visit.df.RDA")
 
 
 # for the leader follower data, leave out the "already present". 
@@ -542,6 +550,8 @@ sp_class_spr <- sp_class_spr[,!(names(sp_class_spr) %in% c("sex", "visit"))]
 
 sp_class_season <- rbind(sp_class_summ, sp_class_aut, sp_class_wint, sp_class_spr)
 
+sp_class_season$group <- paste(sp_class_season$season, sp_class_season$group, sep="_")
+
 visits_all_season <- rbind(summer.visit.df, autumn.visit.df, winter.visit.df, spring.visit.df)
 
 # only retain the max number of visits for each bird in each group
@@ -549,16 +559,16 @@ visits_all_season <- rbind(summer.visit.df, autumn.visit.df, winter.visit.df, sp
 # Load the dplyr package
 library(dplyr)
 
-# Assuming your data frame is called 'df'
+
+# SW: here it might change
 visits_all_season <- visits_all_season %>%
   dplyr::group_by(PIT, group) %>%
   filter(visit == max(visit)) %>%
   ungroup()
 
+visits_all_season <- as.data.frame(visits_all_season)
 
-
-write.csv(visits_all_season, file="data/visits_all_season.csv")
-read.csv("data/visits_all_season.csv")
+write.table(visits_all_season, file="data/visits_all_season.txt")
 
 # 4) calculate network position -------------------------------------------
 
@@ -608,30 +618,30 @@ network.pos.spring <- calculate.soc.network.pos(gbi=gmm.spring$gbi, metadata = g
 
 
 
-# 5) Calculate group size -------------------------------------------------
-
-# here is a function that extracts group sizes - we need to control for this in the model
-extract.group.size <- function(network.pos.object, net.data){
-  for(i in sort(unique(network.pos.object$group))){
-    
-    network.pos.object[which(network.pos.object$group==i), "group.size"] <-  length(unique(subset(net.data$PIT, net.data$group==i)))
-    
-    
-  }
-  return(network.pos.object)
-}
-
-# we run this on each season object
-network.pos.summer <- extract.group.size(network.pos.object = network.pos.summer, net.data=net.data.summer)
-network.pos.autumn <- extract.group.size(network.pos.object = network.pos.autumn, net.data=net.data.autumn)
-network.pos.winter <- extract.group.size(network.pos.object = network.pos.winter, net.data=net.data.winter)
-network.pos.spring <- extract.group.size(network.pos.object = network.pos.spring, net.data=net.data.spring)
+# # 5) Calculate group size -------------------------------------------------
+# 
+# # here is a function that extracts group sizes - we need to control for this in the model
+# extract.group.size <- function(network.pos.object, net.data){
+#   for(i in sort(unique(network.pos.object$group))){
+#     
+#     network.pos.object[which(network.pos.object$group==i), "group.size"] <-  length(unique(subset(net.data$PIT, net.data$group==i)))
+#     
+#     
+#   }
+#   return(network.pos.object)
+# }
+# 
+# # we run this on each season object
+# network.pos.summer <- extract.group.size(network.pos.object = network.pos.summer, net.data=net.data.summer)
+# network.pos.autumn <- extract.group.size(network.pos.object = network.pos.autumn, net.data=net.data.autumn)
+# network.pos.winter <- extract.group.size(network.pos.object = network.pos.winter, net.data=net.data.winter)
+# network.pos.spring <- extract.group.size(network.pos.object = network.pos.spring, net.data=net.data.spring)
 
 
 # combine them into one data frame
 network.pos.all.seasons <- rbind.data.frame(network.pos.summer, network.pos.autumn, network.pos.winter, network.pos.spring)
 
-network.pos.all.seasons$group.size <- as.numeric(network.pos.all.seasons$group.size)
+#network.pos.all.seasons$group.size <- as.numeric(network.pos.all.seasons$group.size)
 network.pos.all.seasons$leader.follower <- as.factor(network.pos.all.seasons$leader.follower)
 
 # we need to add one column on the species prevalence in each flock
@@ -656,5 +666,5 @@ network.pos.all.seasons <- network.pos.all.seasons %>%
 network.pos.all.seasons$leader.follower <- as.factor(network.pos.all.seasons$leader.follower)
 
 
-write.csv(network.pos.all.seasons, file="data/leader_follower_data_all_seasons.csv")
+write.table(network.pos.all.seasons, file="data/leader_follower_data_all_seasons.txt")
 
