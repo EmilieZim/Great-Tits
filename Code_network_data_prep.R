@@ -143,7 +143,7 @@ net.data.summer$visit[1] <- 1
 
 # now we loop through the entire data frame
 for(i in 2:length(net.data.summer$group)){
-  # we extract the PIT tag, the group number, and visit time of bird i and the bird, group number and visit time that came just before
+  # we extract the PIT tag, the group number, and visit time of bird i and the bird's group number and visit time that came just before
   group.i <- net.data.summer$group[i]
   ID.i <- net.data.summer$PIT[i]
   time.i <- net.data.summer$Date.Time[i]
