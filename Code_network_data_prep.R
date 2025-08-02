@@ -134,80 +134,64 @@ length(unique(net.data.summer$group))
 # make sure it's in correct order (first ordered by groups, then time)
 net.data.summer <- net.data.summer[with(net.data.summer, order(group, Date.Time)), ]
 
-# we create a new column called 'leader_follower' all filled with NA
-net.data.summer$leader.follower <- NA
-# to the very first visitor, we assign a 'leader'
-net.data.summer$leader.follower[1] <- "leader"
-# we also create a column 'visit' to count how many times the same bird flew back and forth in a given visit by the entire flock
-# if it was absent for at least 5 seconds, we count is as a new visit
-net.data.summer$visit <- NA
-net.data.summer$visit[1] <- 1
+library(dplyr)
+library(lubridate)
 
-# now we loop through the entire data frame
-for(i in 2:length(net.data.summer$group)){
-  # we extract the PIT tag, the group number, and visit time of bird i and the bird, group number and visit time that came just before
-  group.i <- net.data.summer$group[i]
-  ID.i <- net.data.summer$PIT[i]
-  time.i <- net.data.summer$Date.Time[i]
-  group.i_minus1 <- net.data.summer$group[i-1]
-  ID.i_minus1 <- net.data.summer$PIT[i-1]
-  time.i_minus1 <- net.data.summer$Date.Time[i-1]
-  
-  # first we look at the leader/follower assignment
-  
-  # we also don't want to assign a new leader.follower number, if the bird had already arrived as part of the current group, so we extract the PIT tags that are already part of the current group
-  sub <- net.data.summer[1:(i-1),]
-  sub <- subset(sub, sub$group==group.i)
-  already.present <- unique(sub$PIT)
-  
-  if(ID.i %in% already.present){ # if the bird hard already arrived as part of the current group
-    net.data.summer$leader.follower[i] <- 'already.present' # we assign 'already.present'
-  } else if(group.i==group.i_minus1 & ID.i!=ID.i_minus1){
-    # if it's the same group but a new bird, we assign 'follower'
-    net.data.summer$leader.follower[i] <- 'follower'
-  } else if(group.i!=group.i_minus1){
-    # if it's a new group, we start over with the leader.follower=1
-    net.data.summer$leader.follower[i] <- 'leader'
-  }
-  
-  
-  # then we look at the visits:
-  # if the current entry i is by a bird already present in the groupthe same bird within the same group and within 5 s of the previous entry, it is considered the same visit. Otherwise a new visit (visit+1)
-  if(group.i==group.i_minus1 & ID.i %in% already.present & as.numeric(difftime(as.POSIXct(substr(time.i,7,12), format="%H%M%S"),as.POSIXct(substr(time.i_minus1,7,12), format="%H%M%S")))<=5){
-    net.data.summer$visit[i] <- max(na.omit(subset(net.data.summer$visit, net.data.summer$PIT==ID.i & net.data.summer$group==group.i)))
-  } else if(group.i==group.i_minus1 & ID.i %in% already.present & as.numeric(difftime(as.POSIXct(substr(time.i,7,12), format="%H%M%S"),as.POSIXct(substr(time.i_minus1,7,12), format="%H%M%S")))>5){ # if it's the same group and the same ID, but more than 5 s, we assign its visit +1
-    net.data.summer$visit[i] <- max(na.omit(subset(net.data.summer$visit, net.data.summer$PIT==ID.i & net.data.summer$group==group.i)))+1
-  } else if(group.i==group.i_minus1 & !(ID.i %in% already.present )){ # if it's a new bird, then assign visit 1
-    net.data.summer$visit[i] <- 1
-  } else if(group.i!=group.i_minus1){
-    net.data.summer$visit[i] <- 1
-  }
-}
+# Step 1: Parse Date.Time correctly
+net.data.summer <- net.data.summer %>%
+  mutate(Date.Time = strptime(Date.Time, format = "%y%m%d%H%M%S", tz = "UTC"))
 
+# Step 2: Find first Date.Time for each PIT within each group
+df_first <- net.data.summer %>%
+  group_by(group, PIT) %>%
+  summarise(
+    Date.Time = min(Date.Time),
+    location = first(location),
+    week = first(week),
+    visit.duration = first(visit.duration),
+    .groups = "drop"
+  )
+
+# Step 3: Identify the leader in each group
+leaders <- df_first %>%
+  group_by(group) %>%
+  filter(Date.Time == min(Date.Time)) %>%
+  mutate(leader.follower = "leader") %>%
+  select(group, PIT, leader.follower)
+
+# Step 4: Join leader info back to df_first
+df_labeled <- df_first %>%
+  left_join(leaders, by = c("group", "PIT")) %>%
+  mutate(leader.follower = ifelse(is.na(leader.follower), "follower", leader.follower))
+
+# Step 5: Calculate number of distinct visits (≥10s apart)
+df_visits <- net.data.summer %>%
+  arrange(PIT, group, Date.Time) %>%
+  group_by(PIT, group) %>%
+  mutate(
+    time_diff = as.numeric(difftime(Date.Time, lag(Date.Time), units = "secs")),
+    new_visit = if_else(is.na(time_diff) | time_diff > 10, 1, 0),
+    visit_id = cumsum(new_visit)
+  ) %>%
+  ungroup()
+
+df_visit_counts <- df_visits %>%
+  group_by(PIT, group) %>%
+  summarise(n_visits = n_distinct(visit_id), .groups = "drop")
+
+# Step 6: Combine leader/follower and visit counts
+df_final <- df_labeled %>%
+  left_join(df_visit_counts, by = c("PIT", "group")) %>%
+  arrange(group, Date.Time)
 
 
 # add the species and ages
-sp_class_summ <- merge(net.data.summer, species_age_sex, by.x= "PIT")
-str(sp_class_summ$species)
-sp_class_summ$species <- as.factor(sp_class_summ$species)
-sp_class_summ$age_in_2020 <- as.factor(sp_class_summ$age_in_2020)
+df_final_species <- merge(df_final, species_age_sex, by.x= "PIT")
 # reduce to great tits, blue tits, marsh tits and nuthatches
-sp_class_summ <- subset(sp_class_summ, sp_class_summ$species %in% c("BLUTI", "GRETI", "MARTI", "NUTHA"))
-sp_class_summ$season <- "summer"
+df_final_species <- subset(df_final_species, df_final_species$species %in% c("BLUTI", "GRETI", "MARTI", "NUTHA"))
+df_final_species$season <- "summer"
 
-# extract the data frame for the visit data
-summer.visit.df <- unique(sp_class_summ[,c("PIT", "visit", "species", "group", "season", "visit.duration")])
-# save it
-summer.visit.df$group <- paste(summer.visit.df$season, summer.visit.df$group, sep="_")
-#save(summer.visit.df, file="data/summer.visit.df.RDA")
-load("data/summer.visit.df.RDA")
-
-
-# for the leader follower data, leave out the "already present". 
-sp_class_summ$leader.follower[sp_class_summ$leader.follower == "already.present"] <- 0
-sp_class_summ <- subset(sp_class_summ, sp_class_summ$leader.follower!=0)
-# remove the visit column (to make sure we do not use this one for the visitation data) 
-sp_class_summ <- sp_class_summ[,!(names(sp_class_summ) %in% c("sex", "visit"))]
+df_summer <- df_final_species
 
 
 # 3.2) autumn -------------------------------------------------------------
@@ -216,6 +200,7 @@ sp_class_summ <- sp_class_summ[,!(names(sp_class_summ) %in% c("sex", "visit"))]
 load("data/gmm.autumn.RData")
 net.data.autumn <- read.delim("data/Mill.data.autumn.txt", sep=",", row.names = 1)
 head(net.data.autumn)
+
 
 gmm.autumn$metadata$Location2 <- substr(gmm.autumn$metadata$Location, 8, 13)
 
@@ -238,86 +223,70 @@ for(i in 1:length(gmm.autumn$metadata$Start)){ # for each start time
     as.numeric(difftime(as.POSIXct(substr(gmm.autumn$metadata$End[i],7,12), format="%H%M%S"),as.POSIXct(substr(gmm.autumn$metadata$Start[i],7,12), format="%H%M%S")), units="mins")
 }
 
-net.data.autumn <- net.data.autumn[which(!(is.na(net.data.autumn$group))),]
+net.data.autumn[which(is.na(net.data.autumn$group)),]
+# some are NA that were outside of the 48 hour period
 
 length(unique(net.data.autumn$group))
-# 1579 groups remain
+# 1580 groups 
 
 # make sure it's in correct order (first ordered by groups, then time)
 net.data.autumn <- net.data.autumn[with(net.data.autumn, order(group, Date.Time)), ]
 
-# we create a new column called 'leader_follower' all filled with NA
-net.data.autumn$leader.follower <- NA
-# to the very first visitor, we assign a 'leader'
-net.data.autumn$leader.follower[1] <- "leader"
-# we also create a column 'visit' to count how many times the same bird flew back and forth in a given visit by the entire flock
-# if it was absent for at least 5 seconds, we count is as a new visit
-net.data.autumn$visit <- NA
-net.data.autumn$visit[1] <- 1
+# Step 1: Parse Date.Time correctly
+net.data.autumn <- net.data.autumn %>%
+  mutate(Date.Time = strptime(Date.Time, format = "%y%m%d%H%M%S", tz = "UTC"))
 
-# now we loop through the entire data frame
-for(i in 2:length(net.data.autumn$group)){
-  # we extract the PIT tag, the group number, and visit time of bird i and the bird, group number and visit time that came just before
-  group.i <- net.data.autumn$group[i]
-  ID.i <- net.data.autumn$PIT[i]
-  time.i <- net.data.autumn$Date.Time[i]
-  group.i_minus1 <- net.data.autumn$group[i-1]
-  ID.i_minus1 <- net.data.autumn$PIT[i-1]
-  time.i_minus1 <- net.data.autumn$Date.Time[i-1]
-  
-  # first we look at the leader/follower assignment
-  
-  # we also don't want to assign a new leader.follower number, if the bird had already arrived as part of the current group, so we extract the PIT tags that are already part of the current group
-  sub <- net.data.autumn[1:(i-1),]
-  sub <- subset(sub, sub$group==group.i)
-  already.present <- unique(sub$PIT)
-  
-  if(ID.i %in% already.present){ # if the bird hard already arrived as part of the current group
-    net.data.autumn$leader.follower[i] <- 'already.present' # we assign 'already.present'
-  } else if(group.i==group.i_minus1 & ID.i!=ID.i_minus1){
-    # if it's the same group but a new bird, we assign 'follower'
-    net.data.autumn$leader.follower[i] <- 'follower'
-  } else if(group.i!=group.i_minus1){
-    # if it's a new group, we start over with the leader.follower=1
-    net.data.autumn$leader.follower[i] <- 'leader'
-  }
-  
-  
-  # then we look at the visits:
-  # if the current entry i is by a bird already present in the groupthe same bird within the same group and within 5 s of the previous entry, it is considered the same visit. Otherwise a new visit (visit+1)
-  if(group.i==group.i_minus1 & ID.i %in% already.present & as.numeric(difftime(as.POSIXct(substr(time.i,7,12), format="%H%M%S"),as.POSIXct(substr(time.i_minus1,7,12), format="%H%M%S")))<=5){
-    net.data.autumn$visit[i] <- max(na.omit(subset(net.data.autumn$visit, net.data.autumn$PIT==ID.i & net.data.autumn$group==group.i)))
-  } else if(group.i==group.i_minus1 & ID.i %in% already.present & as.numeric(difftime(as.POSIXct(substr(time.i,7,12), format="%H%M%S"),as.POSIXct(substr(time.i_minus1,7,12), format="%H%M%S")))>5){ # if it's the same group and the same ID, but more than 5 s, we assign its visit +1
-    net.data.autumn$visit[i] <- max(na.omit(subset(net.data.autumn$visit, net.data.autumn$PIT==ID.i & net.data.autumn$group==group.i)))+1
-  } else if(group.i==group.i_minus1 & !(ID.i %in% already.present )){ # if it's a new bird, then assign visit 1
-    net.data.autumn$visit[i] <- 1
-  } else if(group.i!=group.i_minus1){
-    net.data.autumn$visit[i] <- 1
-  }
-}
+# Step 2: Find first Date.Time for each PIT within each group
+df_first <- net.data.autumn %>%
+  group_by(group, PIT) %>%
+  summarise(
+    Date.Time = min(Date.Time),
+    location = first(location),
+    week = first(week),
+    visit.duration = first(visit.duration),
+    .groups = "drop"
+  )
+
+# Step 3: Identify the leader in each group
+leaders <- df_first %>%
+  group_by(group) %>%
+  filter(Date.Time == min(Date.Time)) %>%
+  mutate(leader.follower = "leader") %>%
+  select(group, PIT, leader.follower)
+
+# Step 4: Join leader info back to df_first
+df_labeled <- df_first %>%
+  left_join(leaders, by = c("group", "PIT")) %>%
+  mutate(leader.follower = ifelse(is.na(leader.follower), "follower", leader.follower))
+
+# Step 5: Calculate number of distinct visits (≥10s apart)
+df_visits <- net.data.autumn %>%
+  arrange(PIT, group, Date.Time) %>%
+  group_by(PIT, group) %>%
+  mutate(
+    time_diff = as.numeric(difftime(Date.Time, lag(Date.Time), units = "secs")),
+    new_visit = if_else(is.na(time_diff) | time_diff > 10, 1, 0),
+    visit_id = cumsum(new_visit)
+  ) %>%
+  ungroup()
+
+df_visit_counts <- df_visits %>%
+  group_by(PIT, group) %>%
+  summarise(n_visits = n_distinct(visit_id), .groups = "drop")
+
+# Step 6: Combine leader/follower and visit counts
+df_final <- df_labeled %>%
+  left_join(df_visit_counts, by = c("PIT", "group")) %>%
+  arrange(group, Date.Time)
 
 
 # add the species and ages
-sp_class_aut <- merge(net.data.autumn, species_age_sex, by.x= "PIT")
-str(sp_class_aut$species)
-sp_class_aut$species <- as.factor(sp_class_aut$species)
-sp_class_aut$age_in_2020 <- as.factor(sp_class_aut$age_in_2020)
+df_final_species <- merge(df_final, species_age_sex, by.x= "PIT")
 # reduce to great tits, blue tits, marsh tits and nuthatches
-sp_class_aut <- subset(sp_class_aut, sp_class_aut$species %in% c("BLUTI", "GRETI", "MARTI", "NUTHA"))
-sp_class_aut$season <- "autumn"
+df_final_species <- subset(df_final_species, df_final_species$species %in% c("BLUTI", "GRETI", "MARTI", "NUTHA"))
+df_final_species$season <- "autumn"
 
-# extract the data frame for the visit data
-autumn.visit.df <- unique(sp_class_aut[,c("PIT", "visit", "species", "group", "season", "visit.duration")])
-# save it
-autumn.visit.df$group <- paste(autumn.visit.df$season, autumn.visit.df$group, sep="_")
-#save(autumn.visit.df, file="data/autumn.visit.df.RDA")
-load("data/autumn.visit.df.RDA")
-
-# for the leader follower data, leave out the "already present". 
-sp_class_aut$leader.follower[sp_class_aut$leader.follower == "already.present"] <- 0
-sp_class_aut <- subset(sp_class_aut, sp_class_aut$leader.follower!=0)
-# remove the visit column (to make sure we do not use this one for the visitation data) 
-sp_class_aut <- sp_class_aut[,!(names(sp_class_aut) %in% c("sex", "visit"))]
+df_autumn <- df_final_species
 
 
 # 3.3) winter -------------------------------------------------------------
@@ -350,90 +319,74 @@ for(i in 1:length(gmm.winter$metadata$Start)){ # for each start time
     as.numeric(difftime(as.POSIXct(substr(gmm.winter$metadata$End[i],7,12), format="%H%M%S"),as.POSIXct(substr(gmm.winter$metadata$Start[i],7,12), format="%H%M%S")), units="mins")
 }
 
-net.data.winter <- net.data.winter[which(!(is.na(net.data.winter$group))),]
+net.data.winter[which(is.na(net.data.winter$group)),]
+# some are NA that were outside of the 48 hour period
 
 length(unique(net.data.winter$group))
-# 2867 groups remain
+# 2868 groups 
 
 # make sure it's in correct order (first ordered by groups, then time)
 net.data.winter <- net.data.winter[with(net.data.winter, order(group, Date.Time)), ]
 
-# we create a new column called 'leader_follower' all filled with NA
-net.data.winter$leader.follower <- NA
-# to the very first visitor, we assign a 'leader'
-net.data.winter$leader.follower[1] <- "leader"
-# we also create a column 'visit' to count how many times the same bird flew back and forth in a given visit by the entire flock
-# if it was absent for at least 5 seconds, we count is as a new visit
-net.data.winter$visit <- NA
-net.data.winter$visit[1] <- 1
+# Step 1: Parse Date.Time correctly
+net.data.winter <- net.data.winter %>%
+  mutate(Date.Time = strptime(Date.Time, format = "%y%m%d%H%M%S", tz = "UTC"))
 
-# now we loop through the entire data frame
-for(i in 2:length(net.data.winter$group)){
-  # we extract the PIT tag, the group number, and visit time of bird i and the bird, group number and visit time that came just before
-  group.i <- net.data.winter$group[i]
-  ID.i <- net.data.winter$PIT[i]
-  time.i <- net.data.winter$Date.Time[i]
-  group.i_minus1 <- net.data.winter$group[i-1]
-  ID.i_minus1 <- net.data.winter$PIT[i-1]
-  time.i_minus1 <- net.data.winter$Date.Time[i-1]
-  
-  # first we look at the leader/follower assignment
-  
-  # we also don't want to assign a new leader.follower number, if the bird had already arrived as part of the current group, so we extract the PIT tags that are already part of the current group
-  sub <- net.data.winter[1:(i-1),]
-  sub <- subset(sub, sub$group==group.i)
-  already.present <- unique(sub$PIT)
-  
-  if(ID.i %in% already.present){ # if the bird hard already arrived as part of the current group
-    net.data.winter$leader.follower[i] <- 'already.present' # we assign 'already.present'
-  } else if(group.i==group.i_minus1 & ID.i!=ID.i_minus1){
-    # if it's the same group but a new bird, we assign 'follower'
-    net.data.winter$leader.follower[i] <- 'follower'
-  } else if(group.i!=group.i_minus1){
-    # if it's a new group, we start over with the leader.follower=1
-    net.data.winter$leader.follower[i] <- 'leader'
-  }
-  
-  
-  # then we look at the visits:
-  # if the current entry i is by a bird already present in the groupthe same bird within the same group and within 5 s of the previous entry, it is considered the same visit. Otherwise a new visit (visit+1)
-  if(group.i==group.i_minus1 & ID.i %in% already.present & as.numeric(difftime(as.POSIXct(substr(time.i,7,12), format="%H%M%S"),as.POSIXct(substr(time.i_minus1,7,12), format="%H%M%S")))<=5){
-    net.data.winter$visit[i] <- max(na.omit(subset(net.data.winter$visit, net.data.winter$PIT==ID.i & net.data.winter$group==group.i)))
-  } else if(group.i==group.i_minus1 & ID.i %in% already.present & as.numeric(difftime(as.POSIXct(substr(time.i,7,12), format="%H%M%S"),as.POSIXct(substr(time.i_minus1,7,12), format="%H%M%S")))>5){ # if it's the same group and the same ID, but more than 5 s, we assign its visit +1
-    net.data.winter$visit[i] <- max(na.omit(subset(net.data.winter$visit, net.data.winter$PIT==ID.i & net.data.winter$group==group.i)))+1
-  } else if(group.i==group.i_minus1 & !(ID.i %in% already.present )){ # if it's a new bird, then assign visit 1
-    net.data.winter$visit[i] <- 1
-  } else if(group.i!=group.i_minus1){
-    net.data.winter$visit[i] <- 1
-  }
-}
+# Step 2: Find first Date.Time for each PIT within each group
+df_first <- net.data.winter %>%
+  group_by(group, PIT) %>%
+  summarise(
+    Date.Time = min(Date.Time),
+    location = first(location),
+    week = first(week),
+    visit.duration = first(visit.duration),
+    .groups = "drop"
+  )
 
+# Step 3: Identify the leader in each group
+leaders <- df_first %>%
+  group_by(group) %>%
+  filter(Date.Time == min(Date.Time)) %>%
+  mutate(leader.follower = "leader") %>%
+  select(group, PIT, leader.follower)
+
+# Step 4: Join leader info back to df_first
+df_labeled <- df_first %>%
+  left_join(leaders, by = c("group", "PIT")) %>%
+  mutate(leader.follower = ifelse(is.na(leader.follower), "follower", leader.follower))
+
+# Step 5: Calculate number of distinct visits (≥10s apart)
+df_visits <- net.data.winter %>%
+  arrange(PIT, group, Date.Time) %>%
+  group_by(PIT, group) %>%
+  mutate(
+    time_diff = as.numeric(difftime(Date.Time, lag(Date.Time), units = "secs")),
+    new_visit = if_else(is.na(time_diff) | time_diff > 10, 1, 0),
+    visit_id = cumsum(new_visit)
+  ) %>%
+  ungroup()
+
+df_visit_counts <- df_visits %>%
+  group_by(PIT, group) %>%
+  summarise(n_visits = n_distinct(visit_id), .groups = "drop")
+
+# Step 6: Combine leader/follower and visit counts
+df_final <- df_labeled %>%
+  left_join(df_visit_counts, by = c("PIT", "group")) %>%
+  arrange(group, Date.Time)
 
 
 # add the species and ages
-sp_class_wint <- merge(net.data.winter, species_age_sex, by.x= "PIT")
-str(sp_class_wint$species)
-sp_class_wint$species <- as.factor(sp_class_wint$species)
-sp_class_wint$age_in_2020 <- as.factor(sp_class_wint$age_in_2020)
+df_final_species <- merge(df_final, species_age_sex, by.x= "PIT")
 # reduce to great tits, blue tits, marsh tits and nuthatches
-sp_class_wint <- subset(sp_class_wint, sp_class_wint$species %in% c("BLUTI", "GRETI", "MARTI", "NUTHA"))
-sp_class_wint$season <- "winter"
+df_final_species <- subset(df_final_species, df_final_species$species %in% c("BLUTI", "GRETI", "MARTI", "NUTHA"))
+df_final_species$season <- "winter"
 
-# extract the data frame for the visit data
-winter.visit.df <- unique(sp_class_wint[,c("PIT", "visit", "species", "group", "season", "visit.duration")])
-# save it
-winter.visit.df$group <- paste(winter.visit.df$season, winter.visit.df$group, sep="_")
-#save(winter.visit.df, file="data/winter.visit.df.RDA")
-load("data/winter.visit.df.RDA")
-
-# for the leader follower data, leave out the "already present". 
-sp_class_wint$leader.follower[sp_class_wint$leader.follower == "already.present"] <- 0
-sp_class_wint <- subset(sp_class_wint, sp_class_wint$leader.follower!=0)
-# remove the visit column (to make sure we do not use this one for the visitation data) 
-sp_class_wint <- sp_class_wint[,!(names(sp_class_wint) %in% c("sex", "visit"))]
+df_winter <- df_final_species
 
 
 # 3.4) spring -------------------------------------------------------------
+
 
 
 load("data/gmm.spring.RData")
@@ -465,116 +418,73 @@ for(i in 1:length(gmm.spring$metadata$Start)){ # for each start time
 net.data.spring[which(is.na(net.data.spring$group)),]
 
 length(unique(net.data.spring$group))
-# 2389 groups remain
+# 2389 groups 
 
 # make sure it's in correct order (first ordered by groups, then time)
 net.data.spring <- net.data.spring[with(net.data.spring, order(group, Date.Time)), ]
 
-# we create a new column called 'leader_follower' all filled with NA
-net.data.spring$leader.follower <- NA
-# to the very first visitor, we assign a 'leader'
-net.data.spring$leader.follower[1] <- "leader"
-# we also create a column 'visit' to count how many times the same bird flew back and forth in a given visit by the entire flock
-# if it was absent for at least 5 seconds, we count is as a new visit
-net.data.spring$visit <- NA
-net.data.spring$visit[1] <- 1
+# Step 1: Parse Date.Time correctly
+net.data.spring <- net.data.spring %>%
+  mutate(Date.Time = strptime(Date.Time, format = "%y%m%d%H%M%S", tz = "UTC"))
 
-# now we loop through the entire data frame
-for(i in 2:length(net.data.spring$group)){
-  # we extract the PIT tag, the group number, and visit time of bird i and the bird, group number and visit time that came just before
-  group.i <- net.data.spring$group[i]
-  ID.i <- net.data.spring$PIT[i]
-  time.i <- net.data.spring$Date.Time[i]
-  group.i_minus1 <- net.data.spring$group[i-1]
-  ID.i_minus1 <- net.data.spring$PIT[i-1]
-  time.i_minus1 <- net.data.spring$Date.Time[i-1]
-  
-  # first we look at the leader/follower assignment
-  
-  # we also don't want to assign a new leader.follower number, if the bird had already arrived as part of the current group, so we extract the PIT tags that are already part of the current group
-  sub <- net.data.spring[1:(i-1),]
-  sub <- subset(sub, sub$group==group.i)
-  already.present <- unique(sub$PIT)
-  
-  if(ID.i %in% already.present){ # if the bird hard already arrived as part of the current group
-    net.data.spring$leader.follower[i] <- 'already.present' # we assign 'already.present'
-  } else if(group.i==group.i_minus1 & ID.i!=ID.i_minus1){
-    # if it's the same group but a new bird, we assign 'follower'
-    net.data.spring$leader.follower[i] <- 'follower'
-  } else if(group.i!=group.i_minus1){
-    # if it's a new group, we start over with the leader.follower=1
-    net.data.spring$leader.follower[i] <- 'leader'
-  }
-  
-  
-  # then we look at the visits:
-  # if the current entry i is by a bird already present in the groupthe same bird within the same group and within 5 s of the previous entry, it is considered the same visit. Otherwise a new visit (visit+1)
-  if(group.i==group.i_minus1 & ID.i %in% already.present & as.numeric(difftime(as.POSIXct(substr(time.i,7,12), format="%H%M%S"),as.POSIXct(substr(time.i_minus1,7,12), format="%H%M%S")))<=5){
-    net.data.spring$visit[i] <- max(na.omit(subset(net.data.spring$visit, net.data.spring$PIT==ID.i & net.data.spring$group==group.i)))
-  } else if(group.i==group.i_minus1 & ID.i %in% already.present & as.numeric(difftime(as.POSIXct(substr(time.i,7,12), format="%H%M%S"),as.POSIXct(substr(time.i_minus1,7,12), format="%H%M%S")))>5){ # if it's the same group and the same ID, but more than 5 s, we assign its visit +1
-    net.data.spring$visit[i] <- max(na.omit(subset(net.data.spring$visit, net.data.spring$PIT==ID.i & net.data.spring$group==group.i)))+1
-  } else if(group.i==group.i_minus1 & !(ID.i %in% already.present )){ # if it's a new bird, then assign visit 1
-    net.data.spring$visit[i] <- 1
-  } else if(group.i!=group.i_minus1){
-    net.data.spring$visit[i] <- 1
-  }
-}
+# Step 2: Find first Date.Time for each PIT within each group
+df_first <- net.data.spring %>%
+  group_by(group, PIT) %>%
+  summarise(
+    Date.Time = min(Date.Time),
+    location = first(location),
+    week = first(week),
+    visit.duration = first(visit.duration),
+    .groups = "drop"
+  )
 
+# Step 3: Identify the leader in each group
+leaders <- df_first %>%
+  group_by(group) %>%
+  filter(Date.Time == min(Date.Time)) %>%
+  mutate(leader.follower = "leader") %>%
+  select(group, PIT, leader.follower)
+
+# Step 4: Join leader info back to df_first
+df_labeled <- df_first %>%
+  left_join(leaders, by = c("group", "PIT")) %>%
+  mutate(leader.follower = ifelse(is.na(leader.follower), "follower", leader.follower))
+
+# Step 5: Calculate number of distinct visits (≥10s apart)
+df_visits <- net.data.spring %>%
+  arrange(PIT, group, Date.Time) %>%
+  group_by(PIT, group) %>%
+  mutate(
+    time_diff = as.numeric(difftime(Date.Time, lag(Date.Time), units = "secs")),
+    new_visit = if_else(is.na(time_diff) | time_diff > 10, 1, 0),
+    visit_id = cumsum(new_visit)
+  ) %>%
+  ungroup()
+
+df_visit_counts <- df_visits %>%
+  group_by(PIT, group) %>%
+  summarise(n_visits = n_distinct(visit_id), .groups = "drop")
+
+# Step 6: Combine leader/follower and visit counts
+df_final <- df_labeled %>%
+  left_join(df_visit_counts, by = c("PIT", "group")) %>%
+  arrange(group, Date.Time)
 
 
 # add the species and ages
-sp_class_spr <- merge(net.data.spring, species_age_sex, by.x= "PIT")
-str(sp_class_spr$species)
-sp_class_spr$species <- as.factor(sp_class_spr$species)
-sp_class_spr$age_in_2020 <- as.factor(sp_class_spr$age_in_2020)
+df_final_species <- merge(df_final, species_age_sex, by.x= "PIT")
 # reduce to great tits, blue tits, marsh tits and nuthatches
-sp_class_spr <- subset(sp_class_spr, sp_class_spr$species %in% c("BLUTI", "GRETI", "MARTI", "NUTHA"))
-sp_class_spr$season <- "spring"
+df_final_species <- subset(df_final_species, df_final_species$species %in% c("BLUTI", "GRETI", "MARTI", "NUTHA"))
+df_final_species$season <- "spring"
 
-# extract the data frame for the visit data
-spring.visit.df <- unique(sp_class_spr[,c("PIT", "visit", "species", "group", "season", "visit.duration")])
-# save it
-spring.visit.df$group <- paste(spring.visit.df$season, spring.visit.df$group, sep="_")
-#save(spring.visit.df, file="data/spring.visit.df.RDA")
-load("data/spring.visit.df.RDA")
+df_spring <- df_final_species
 
-
-# for the leader follower data, leave out the "already present". 
-sp_class_spr$leader.follower[sp_class_spr$leader.follower == "already.present"] <- 0
-sp_class_spr <- subset(sp_class_spr, sp_class_spr$leader.follower!=0)
-# remove the visit column (to make sure we do not use this one for the visitation data) 
-sp_class_spr <- sp_class_spr[,!(names(sp_class_spr) %in% c("sex", "visit"))]
-
-
-# 3.5) combine follower leader data ----------------------------------------
-
-sp_class_season <- rbind(sp_class_summ, sp_class_aut, sp_class_wint, sp_class_spr)
-
-sp_class_season$group <- paste(sp_class_season$season, sp_class_season$group, sep="_")
-
-visits_all_season <- rbind(summer.visit.df, autumn.visit.df, winter.visit.df, spring.visit.df)
-
-# only retain the max number of visits for each bird in each group
-
-# Load the dplyr package
-library(dplyr)
-
-
-# SW: here it might change
-visits_all_season <- visits_all_season %>%
-  dplyr::group_by(PIT, group) %>%
-  filter(visit == max(visit)) %>%
-  ungroup()
-
-visits_all_season <- as.data.frame(visits_all_season)
-
-write.table(visits_all_season, file="data/visits_all_season.txt")
 
 # 4) calculate network position -------------------------------------------
 
 # this automatically adds the social network position calculated across the three weeks each season for birds with a minimum of 5 visits
 library(igraph)
-calculate.soc.network.pos <- function(gbi, metadata, threshold=5, season){
+calculate.soc.network.pos <- function(gbi, metadata, threshold=5, season, df){
   
   # subset to the threshold
   gbi.sub <- gbi[,colSums(gbi)>=threshold]
@@ -590,59 +500,32 @@ calculate.soc.network.pos <- function(gbi, metadata, threshold=5, season){
   net_deg <- degree(net)
   Tag <- V(net)$name
   
-  centrality_table <- data.frame(
-    PIT = Tag,
-    degree = net_deg)
+  bet <- betweenness(net)
   
-  dc <- merge (centrality_table, sp_class_season[sp_class_season$season==season,], by.x= "PIT")
-  head(dc)
+  comb.net <- cbind.data.frame(Tag, net_deg, bet)
+  colnames(comb.net) <- c("PIT", "degree", "betweenness")
+  rownames(comb.net) <- NULL
   
-  # Create a dataframe that includes degree, betweenness, the individuals and the order 
-  btw <- betweenness(net, v = V(net),directed = F)
-  betweenness_table <- data.frame(
-    PIT = Tag,
-    betweenness = btw)
-  
-  table_week <- merge(dc,betweenness_table, by.x= "PIT" )
-  table_week$season <- season
-  
-  return(table_week)
+  df.merge <- merge(df, comb.net, by="PIT")
+
+  return(df.merge)
   
 }
 
 # apply the function to each season
-network.pos.summer <- calculate.soc.network.pos(gbi=gmm.summer$gbi, metadata = gmm.summer$metadata, threshold=5, season="summer")
-network.pos.autumn <- calculate.soc.network.pos(gbi=gmm.autumn$gbi, metadata = gmm.autumn$metadata, threshold=5, season="autumn")
-network.pos.winter <- calculate.soc.network.pos(gbi=gmm.winter$gbi, metadata = gmm.winter$metadata, threshold=5, season="winter")
-network.pos.spring <- calculate.soc.network.pos(gbi=gmm.spring$gbi, metadata = gmm.spring$metadata, threshold=5, season="spring")
+network.pos.summer <- calculate.soc.network.pos(gbi=gmm.summer$gbi, metadata = gmm.summer$metadata, threshold=5, season="summer", df=df_summer)
+network.pos.autumn <- calculate.soc.network.pos(gbi=gmm.autumn$gbi, metadata = gmm.autumn$metadata, threshold=5, season="autumn", df=df_autumn)
+network.pos.winter <- calculate.soc.network.pos(gbi=gmm.winter$gbi, metadata = gmm.winter$metadata, threshold=5, season="winter", df=df_winter)
+network.pos.spring <- calculate.soc.network.pos(gbi=gmm.spring$gbi, metadata = gmm.spring$metadata, threshold=5, season="spring", df=df_spring)
 
 
 
-# # 5) Calculate group size -------------------------------------------------
-# 
-# # here is a function that extracts group sizes - we need to control for this in the model
-# extract.group.size <- function(network.pos.object, net.data){
-#   for(i in sort(unique(network.pos.object$group))){
-#     
-#     network.pos.object[which(network.pos.object$group==i), "group.size"] <-  length(unique(subset(net.data$PIT, net.data$group==i)))
-#     
-#     
-#   }
-#   return(network.pos.object)
-# }
-# 
-# # we run this on each season object
-# network.pos.summer <- extract.group.size(network.pos.object = network.pos.summer, net.data=net.data.summer)
-# network.pos.autumn <- extract.group.size(network.pos.object = network.pos.autumn, net.data=net.data.autumn)
-# network.pos.winter <- extract.group.size(network.pos.object = network.pos.winter, net.data=net.data.winter)
-# network.pos.spring <- extract.group.size(network.pos.object = network.pos.spring, net.data=net.data.spring)
+# 3.5) combine follower leader data ----------------------------------------
+
+network.pos.all.seasons <- rbind(network.pos.summer, network.pos.autumn, network.pos.winter, network.pos.spring)
 
 
-# combine them into one data frame
-network.pos.all.seasons <- rbind.data.frame(network.pos.summer, network.pos.autumn, network.pos.winter, network.pos.spring)
-
-#network.pos.all.seasons$group.size <- as.numeric(network.pos.all.seasons$group.size)
-network.pos.all.seasons$leader.follower <- as.factor(network.pos.all.seasons$leader.follower)
+network.pos.all.seasons$group <- paste( network.pos.all.seasons$season,network.pos.all.seasons$group, sep="_")
 
 # we need to add one column on the species prevalence in each flock
 # Add species counts per flock
@@ -665,6 +548,12 @@ network.pos.all.seasons <- network.pos.all.seasons %>%
 
 network.pos.all.seasons$leader.follower <- as.factor(network.pos.all.seasons$leader.follower)
 
+# remove sex column since it has NAs
+network.pos.all.seasons <- network.pos.all.seasons %>% select(-sex)
+# change format of Date time back so it does not contain spaces
+
+network.pos.all.seasons <- network.pos.all.seasons %>%
+  mutate(Date.Time = format(Date.Time, "%y%m%d%H%M%S"))
 
 write.table(network.pos.all.seasons, file="data/leader_follower_data_all_seasons.txt")
 
