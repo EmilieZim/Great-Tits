@@ -555,7 +555,7 @@ network.pos.all.seasons %>%
     min_flock_size = min(flock_size),
     max_flock_size = max(flock_size)
   )
-
+^^^^
 # min_flock_size max_flock_size
 # 1              2             22
 

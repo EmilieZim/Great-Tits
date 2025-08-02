@@ -137,9 +137,52 @@ net.data.summer <- net.data.summer[with(net.data.summer, order(group, Date.Time)
 library(dplyr)
 library(lubridate)
 
+<<<<<<< HEAD
 # Step 1: Parse Date.Time correctly
 net.data.summer <- net.data.summer %>%
   mutate(Date.Time = strptime(Date.Time, format = "%y%m%d%H%M%S", tz = "UTC"))
+=======
+# now we loop through the entire data frame
+for(i in 2:length(net.data.summer$group)){
+  # we extract the PIT tag, the group number, and visit time of bird i and the bird's group number and visit time that came just before
+  group.i <- net.data.summer$group[i]
+  ID.i <- net.data.summer$PIT[i]
+  time.i <- net.data.summer$Date.Time[i]
+  group.i_minus1 <- net.data.summer$group[i-1]
+  ID.i_minus1 <- net.data.summer$PIT[i-1]
+  time.i_minus1 <- net.data.summer$Date.Time[i-1]
+  
+  # first we look at the leader/follower assignment
+  
+  # we also don't want to assign a new leader.follower number, if the bird had already arrived as part of the current group, so we extract the PIT tags that are already part of the current group
+  sub <- net.data.summer[1:(i-1),]
+  sub <- subset(sub, sub$group==group.i)
+  already.present <- unique(sub$PIT)
+  
+  if(ID.i %in% already.present){ # if the bird hard already arrived as part of the current group
+    net.data.summer$leader.follower[i] <- 'already.present' # we assign 'already.present'
+  } else if(group.i==group.i_minus1 & ID.i!=ID.i_minus1){
+    # if it's the same group but a new bird, we assign 'follower'
+    net.data.summer$leader.follower[i] <- 'follower'
+  } else if(group.i!=group.i_minus1){
+    # if it's a new group, we start over with the leader.follower=1
+    net.data.summer$leader.follower[i] <- 'leader'
+  }
+  
+  
+  # then we look at the visits:
+  # if the current entry i is by a bird already present in the groupthe same bird within the same group and within 5 s of the previous entry, it is considered the same visit. Otherwise a new visit (visit+1)
+  if(group.i==group.i_minus1 & ID.i %in% already.present & as.numeric(difftime(as.POSIXct(substr(time.i,7,12), format="%H%M%S"),as.POSIXct(substr(time.i_minus1,7,12), format="%H%M%S")))<=5){
+    net.data.summer$visit[i] <- max(na.omit(subset(net.data.summer$visit, net.data.summer$PIT==ID.i & net.data.summer$group==group.i)))
+  } else if(group.i==group.i_minus1 & ID.i %in% already.present & as.numeric(difftime(as.POSIXct(substr(time.i,7,12), format="%H%M%S"),as.POSIXct(substr(time.i_minus1,7,12), format="%H%M%S")))>5){ # if it's the same group and the same ID, but more than 5 s, we assign its visit +1
+    net.data.summer$visit[i] <- max(na.omit(subset(net.data.summer$visit, net.data.summer$PIT==ID.i & net.data.summer$group==group.i)))+1
+  } else if(group.i==group.i_minus1 & !(ID.i %in% already.present )){ # if it's a new bird, then assign visit 1
+    net.data.summer$visit[i] <- 1
+  } else if(group.i!=group.i_minus1){
+    net.data.summer$visit[i] <- 1
+  }
+}
+>>>>>>> 405b6681b634c6e89f05ea73ce96490304ae8e70
 
 # Step 2: Find first Date.Time for each PIT within each group
 df_first <- net.data.summer %>%
