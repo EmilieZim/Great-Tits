@@ -137,52 +137,11 @@ net.data.summer <- net.data.summer[with(net.data.summer, order(group, Date.Time)
 library(dplyr)
 library(lubridate)
 
-<<<<<<< HEAD
+
 # Step 1: Parse Date.Time correctly
 net.data.summer <- net.data.summer %>%
   mutate(Date.Time = strptime(Date.Time, format = "%y%m%d%H%M%S", tz = "UTC"))
-=======
-# now we loop through the entire data frame
-for(i in 2:length(net.data.summer$group)){
-  # we extract the PIT tag, the group number, and visit time of bird i and the bird's group number and visit time that came just before
-  group.i <- net.data.summer$group[i]
-  ID.i <- net.data.summer$PIT[i]
-  time.i <- net.data.summer$Date.Time[i]
-  group.i_minus1 <- net.data.summer$group[i-1]
-  ID.i_minus1 <- net.data.summer$PIT[i-1]
-  time.i_minus1 <- net.data.summer$Date.Time[i-1]
-  
-  # first we look at the leader/follower assignment
-  
-  # we also don't want to assign a new leader.follower number, if the bird had already arrived as part of the current group, so we extract the PIT tags that are already part of the current group
-  sub <- net.data.summer[1:(i-1),]
-  sub <- subset(sub, sub$group==group.i)
-  already.present <- unique(sub$PIT)
-  
-  if(ID.i %in% already.present){ # if the bird hard already arrived as part of the current group
-    net.data.summer$leader.follower[i] <- 'already.present' # we assign 'already.present'
-  } else if(group.i==group.i_minus1 & ID.i!=ID.i_minus1){
-    # if it's the same group but a new bird, we assign 'follower'
-    net.data.summer$leader.follower[i] <- 'follower'
-  } else if(group.i!=group.i_minus1){
-    # if it's a new group, we start over with the leader.follower=1
-    net.data.summer$leader.follower[i] <- 'leader'
-  }
-  
-  
-  # then we look at the visits:
-  # if the current entry i is by a bird already present in the groupthe same bird within the same group and within 5 s of the previous entry, it is considered the same visit. Otherwise a new visit (visit+1)
-  if(group.i==group.i_minus1 & ID.i %in% already.present & as.numeric(difftime(as.POSIXct(substr(time.i,7,12), format="%H%M%S"),as.POSIXct(substr(time.i_minus1,7,12), format="%H%M%S")))<=5){
-    net.data.summer$visit[i] <- max(na.omit(subset(net.data.summer$visit, net.data.summer$PIT==ID.i & net.data.summer$group==group.i)))
-  } else if(group.i==group.i_minus1 & ID.i %in% already.present & as.numeric(difftime(as.POSIXct(substr(time.i,7,12), format="%H%M%S"),as.POSIXct(substr(time.i_minus1,7,12), format="%H%M%S")))>5){ # if it's the same group and the same ID, but more than 5 s, we assign its visit +1
-    net.data.summer$visit[i] <- max(na.omit(subset(net.data.summer$visit, net.data.summer$PIT==ID.i & net.data.summer$group==group.i)))+1
-  } else if(group.i==group.i_minus1 & !(ID.i %in% already.present )){ # if it's a new bird, then assign visit 1
-    net.data.summer$visit[i] <- 1
-  } else if(group.i!=group.i_minus1){
-    net.data.summer$visit[i] <- 1
-  }
-}
->>>>>>> 405b6681b634c6e89f05ea73ce96490304ae8e70
+
 
 # Step 2: Find first Date.Time for each PIT within each group
 df_first <- net.data.summer %>%
@@ -196,11 +155,14 @@ df_first <- net.data.summer %>%
   )
 
 # Step 3: Identify the leader in each group
+# Identify the single earliest PIT per group
 leaders <- df_first %>%
   group_by(group) %>%
-  filter(Date.Time == min(Date.Time)) %>%
+  arrange(Date.Time) %>%
+  slice(1) %>%  # pick only the first row per group, even if there are ties
   mutate(leader.follower = "leader") %>%
   select(group, PIT, leader.follower)
+
 
 # Step 4: Join leader info back to df_first
 df_labeled <- df_first %>%
@@ -235,6 +197,8 @@ df_final_species <- subset(df_final_species, df_final_species$species %in% c("BL
 df_final_species$season <- "summer"
 
 df_summer <- df_final_species
+
+head(df_summer)
 
 
 # 3.2) autumn -------------------------------------------------------------
@@ -279,6 +243,7 @@ net.data.autumn <- net.data.autumn[with(net.data.autumn, order(group, Date.Time)
 net.data.autumn <- net.data.autumn %>%
   mutate(Date.Time = strptime(Date.Time, format = "%y%m%d%H%M%S", tz = "UTC"))
 
+
 # Step 2: Find first Date.Time for each PIT within each group
 df_first <- net.data.autumn %>%
   group_by(group, PIT) %>%
@@ -291,11 +256,14 @@ df_first <- net.data.autumn %>%
   )
 
 # Step 3: Identify the leader in each group
+# Identify the single earliest PIT per group
 leaders <- df_first %>%
   group_by(group) %>%
-  filter(Date.Time == min(Date.Time)) %>%
+  arrange(Date.Time) %>%
+  slice(1) %>%  # pick only the first row per group, even if there are ties
   mutate(leader.follower = "leader") %>%
   select(group, PIT, leader.follower)
+
 
 # Step 4: Join leader info back to df_first
 df_labeled <- df_first %>%
@@ -330,6 +298,8 @@ df_final_species <- subset(df_final_species, df_final_species$species %in% c("BL
 df_final_species$season <- "autumn"
 
 df_autumn <- df_final_species
+
+head(df_autumn)
 
 
 # 3.3) winter -------------------------------------------------------------
@@ -375,6 +345,7 @@ net.data.winter <- net.data.winter[with(net.data.winter, order(group, Date.Time)
 net.data.winter <- net.data.winter %>%
   mutate(Date.Time = strptime(Date.Time, format = "%y%m%d%H%M%S", tz = "UTC"))
 
+
 # Step 2: Find first Date.Time for each PIT within each group
 df_first <- net.data.winter %>%
   group_by(group, PIT) %>%
@@ -387,11 +358,14 @@ df_first <- net.data.winter %>%
   )
 
 # Step 3: Identify the leader in each group
+# Identify the single earliest PIT per group
 leaders <- df_first %>%
   group_by(group) %>%
-  filter(Date.Time == min(Date.Time)) %>%
+  arrange(Date.Time) %>%
+  slice(1) %>%  # pick only the first row per group, even if there are ties
   mutate(leader.follower = "leader") %>%
   select(group, PIT, leader.follower)
+
 
 # Step 4: Join leader info back to df_first
 df_labeled <- df_first %>%
@@ -426,6 +400,8 @@ df_final_species <- subset(df_final_species, df_final_species$species %in% c("BL
 df_final_species$season <- "winter"
 
 df_winter <- df_final_species
+
+head(df_winter)
 
 
 # 3.4) spring -------------------------------------------------------------
@@ -470,6 +446,7 @@ net.data.spring <- net.data.spring[with(net.data.spring, order(group, Date.Time)
 net.data.spring <- net.data.spring %>%
   mutate(Date.Time = strptime(Date.Time, format = "%y%m%d%H%M%S", tz = "UTC"))
 
+
 # Step 2: Find first Date.Time for each PIT within each group
 df_first <- net.data.spring %>%
   group_by(group, PIT) %>%
@@ -482,11 +459,14 @@ df_first <- net.data.spring %>%
   )
 
 # Step 3: Identify the leader in each group
+# Identify the single earliest PIT per group
 leaders <- df_first %>%
   group_by(group) %>%
-  filter(Date.Time == min(Date.Time)) %>%
+  arrange(Date.Time) %>%
+  slice(1) %>%  # pick only the first row per group, even if there are ties
   mutate(leader.follower = "leader") %>%
   select(group, PIT, leader.follower)
+
 
 # Step 4: Join leader info back to df_first
 df_labeled <- df_first %>%
@@ -521,6 +501,8 @@ df_final_species <- subset(df_final_species, df_final_species$species %in% c("BL
 df_final_species$season <- "spring"
 
 df_spring <- df_final_species
+
+head(df_spring)
 
 
 # 4) calculate network position -------------------------------------------
@@ -597,6 +579,26 @@ network.pos.all.seasons <- network.pos.all.seasons %>% select(-sex)
 
 network.pos.all.seasons <- network.pos.all.seasons %>%
   mutate(Date.Time = format(Date.Time, "%y%m%d%H%M%S"))
+
+head(network.pos.all.seasons)
+
+
+# there are some groups that do not have exactly one leader (can be because birds arrived at exactly the same time). we remove those
+invalid_groups <- network.pos.all.seasons %>%
+  group_by(season, group) %>%
+  summarise(n_leaders = sum(leader.follower == "leader"), .groups = "drop") %>%
+  filter(n_leaders != 1) %>%
+  pull(group) %>%
+  unique()
+
+length(invalid_groups)
+# 64
+
+network.pos.all.seasons <- subset(network.pos.all.seasons, !(network.pos.all.seasons$group %in% invalid_groups))
+
+# remove those that have group NA
+network.pos.all.seasons <- subset(network.pos.all.seasons, !(network.pos.all.seasons$group %in% c("summer_NA", "autumn_NA", "winter_NA", "spring_NA")))
+
 
 write.table(network.pos.all.seasons, file="data/leader_follower_data_all_seasons.txt")
 

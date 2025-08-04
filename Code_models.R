@@ -5,8 +5,9 @@
 
 
 # 1.1) Load libraries -----------------------------------------------------
-
-#devtools::install_github("rmcelreath/rethinking")
+library(devtools)
+devtools::install_github("rmcelreath/rethinking")
+# note that rethinking needs cmdstan (make sure that is installed)
 
 ##Library
 library(asnipe)
@@ -75,6 +76,35 @@ network.pos.all.seasons <- subset(network.pos.all.seasons, network.pos.all.seaso
 # how many data points per group size per species?
 table(network.pos.all.seasons$species, network.pos.all.seasons$flock_size)
 
+# add number of feeders
+
+location_counts <- network.pos.all.seasons %>%
+  group_by(PIT, season) %>%
+  summarise(n_feeders = n_distinct(location), .groups = "drop")
+
+network.pos.all.seasons <- network.pos.all.seasons %>%
+  left_join(location_counts, by = c("PIT", "season"))
+
+
+
+
+# 1.4) New idea ----------------------------------------
+
+your_data$expected_leaders <- rowSums(1 / your_data$flock_sizes)  # summed over flocks per bird-season
+
+brm_model <- brm(
+  n_leader ~ season * species + season * social_metric + 
+    offset(log(expected_leaders)) + 
+    offset(log(species_prevalence)) +
+    (1 | PIT),
+  data = your_data,
+  family = poisson(),
+  control = list(adapt_delta = 0.95)
+)
+
+
+
+
 
 # 3) Follower-leader dynamics ---------------------------------------------
 
@@ -84,7 +114,7 @@ table(network.pos.all.seasons$species, network.pos.all.seasons$flock_size)
 network.pos.all.seasons$leader.follower <- as.factor(network.pos.all.seasons$leader.follower)
 
 # we first run a simple regression (no interactions) to look at collinearity between predictors
-model_order_vif <- glmer(leader.follower ~  species + scale(n_visits) + season + age_in_2020 + scale(degree) + scale(betweenness) + (1|PIT), family= binomial, data= network.pos.all.seasons)
+model_order_vif <- glmer(leader.follower ~  species + scale(n_visits) + season + age_in_2020 + scale(degree) + scale(betweenness) + n_feeders + (1|flock) + (1|PIT), family= binomial, data= network.pos.all.seasons)
 
 summary(model_order_vif)
 
@@ -113,6 +143,25 @@ glob_model <- brms::brm(
   cores = 4
 #  save_pars = save_pars(all = TRUE)
 )
+
+
+
+glob_model <- brms::brm(
+  leader.follower ~  season * species + scale(n_visits) + n_feeders + age_in_2020*season + scale(betweenness) + scale(degree) + offset(log(1/flock_size)) + species_prop + (1|group) + (1 | PIT),
+  family = categorical(), 
+  data = network.pos.all.seasons,
+  chains = 4,
+  iter = 4000,
+  cores = 4
+  #  save_pars = save_pars(all = TRUE)
+)
+
+
+
+
+
+
+
 
 #save(glob_model, file="model output/glob_model.RDA")
 load("model output/glob_model.RDA")
