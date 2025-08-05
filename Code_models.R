@@ -5,8 +5,8 @@
 
 
 # 1.1) Load libraries -----------------------------------------------------
-library(devtools)
-devtools::install_github("rmcelreath/rethinking")
+#library(devtools)
+#devtools::install_github("rmcelreath/rethinking")
 # note that rethinking needs cmdstan (make sure that is installed)
 
 ##Library
@@ -16,7 +16,7 @@ library(car)
 library(corrplot)
 library(data.table)
 library(datawizard)
-library(dbplyr)
+library(dplyr)
 library(devtools)
 library(dplyr)
 library(emmeans)
@@ -86,23 +86,19 @@ network.pos.all.seasons <- network.pos.all.seasons %>%
   left_join(location_counts, by = c("PIT", "season"))
 
 
+# 1.4) Summarize individual level data ------------------------------------
 
-
-# 1.4) New idea ----------------------------------------
-
-your_data$expected_leaders <- rowSums(1 / your_data$flock_sizes)  # summed over flocks per bird-season
-
-brm_model <- brm(
-  n_leader ~ season * species + season * social_metric + 
-    offset(log(expected_leaders)) + 
-    offset(log(species_prevalence)) +
-    (1 | PIT),
-  data = your_data,
-  family = poisson(),
-  control = list(adapt_delta = 0.95)
-)
-
-
+# Summarize data at the PIT × season level
+model_data <- network.pos.all.seasons %>%
+  group_by(PIT, season, species, age_in_2020, n_feeders) %>%
+  summarise(
+    n_leader = sum(leader.follower == "leader"),
+    n_total = n(),
+    expected_leaders = sum(1 / flock_size),
+    degree = mean(degree),
+    betweenness = mean(betweenness),
+    .groups = "drop"
+  ) 
 
 
 
@@ -111,62 +107,54 @@ brm_model <- brm(
 
 # 3.1) Calculate VIFs -----------------------------------------------------
 
-network.pos.all.seasons$leader.follower <- as.factor(network.pos.all.seasons$leader.follower)
-
 # we first run a simple regression (no interactions) to look at collinearity between predictors
-model_order_vif <- glmer(leader.follower ~  species + scale(n_visits) + season + age_in_2020 + scale(degree) + scale(betweenness) + n_feeders + (1|flock) + (1|PIT), family= binomial, data= network.pos.all.seasons)
+model_order_vif <- lm(n_leader ~  species + scale(n_total) + season + age_in_2020 + scale(degree) + scale(betweenness) + n_feeders, data= model_data)
+
+vif(model_order_vif)
+
+# GVIF Df GVIF^(1/(2*Df))
+# species            1.814319  3        1.104381
+# scale(n_total)     2.251515  1        1.500505
+# season             2.246371  3        1.144406
+# age_in_2020        1.145059  1        1.070074
+# scale(degree)      2.727523  1        1.651521
+# scale(betweenness) 1.897293  1        1.377423
+# n_feeders          1.416549  1        1.190189
 
 summary(model_order_vif)
 
-vif(model_order_vif)
-# GVIF Df GVIF^(1/(2*Df))
-# species            1.474976  3        1.066917
-# scale(n_visits)    1.017361  1        1.008643
-# season             2.742389  3        1.183100
-# age_in_2020        1.140250  1        1.067825
-# scale(degree)      2.710099  1        1.646238
-# scale(betweenness) 1.346542  1        1.160406
 
 # all vifs <5, so we can include all of them
 
 
 # 3.2) Global model -------------------------------------------------------
 
-# we run a model with leader follower as outcome variable
-# include an offset that controls for flock size since being a leader is more probable in smaller flocks. We also control for species prevalence by including the proportion of the bird's species in the flock. 
-glob_model <- brms::brm(
-  leader.follower ~  season * species + scale(n_visits) + age_in_2020*season + scale(betweenness) + scale(degree) + offset(flock_size) + species_prop + (1 | PIT),
-  family = bernoulli, 
-  data = network.pos.all.seasons,
-  chains = 4,
-  iter = 4000,
-  cores = 4
-#  save_pars = save_pars(all = TRUE)
+# we run a model with the number of times a bird was the leader in a given season.
+# we include individual level predictors, as well as the expected number of times the bird is expected to be a leader by chance based on the flock sizes
+# e.g. if a bird was in three flocks of 2,3 and 4 birds, the expected chance of being a leader across the three flocks is 1/2 + 1/3 + 1/4 = 1.08333
+# note: n_total is the total number of visits to any feeder (controlling for presence in the study area and knowledge about local resources)
+
+
+glob_model <- brm(
+  formula = n_leader ~ season * species + scale(degree) + scale(betweenness) +
+    offset(log(expected_leaders)) +age_in_2020 + scale(n_total) +
+    (1 | PIT),
+  data = model_data,
+  family = poisson(),
+  control = list(adapt_delta = 0.99),
+  cores = 4, chains = 4, iter = 4000
 )
-
-
-
-glob_model <- brms::brm(
-  leader.follower ~  season * species + scale(n_visits) + n_feeders + age_in_2020*season + scale(betweenness) + scale(degree) + offset(log(1/flock_size)) + species_prop + (1|group) + (1 | PIT),
-  family = categorical(), 
-  data = network.pos.all.seasons,
-  chains = 4,
-  iter = 4000,
-  cores = 4
-  #  save_pars = save_pars(all = TRUE)
-)
-
-
-
-
-
-
-
 
 #save(glob_model, file="model output/glob_model.RDA")
 load("model output/glob_model.RDA")
 
 # SW: I have updated things until here
+
+# Next steps:
+# 1) check for overdispersion
+# 2) perform model checks
+# 3) extract summary tables and emmeans
+# 3) create plots
 
 summary(glob_model)
 
