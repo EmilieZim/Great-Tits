@@ -509,7 +509,7 @@ head(df_spring)
 
 # this automatically adds the social network position calculated across the three weeks each season for birds with a minimum of 5 visits
 library(igraph)
-calculate.soc.network.pos <- function(gbi, metadata, threshold=5, season, df){
+calculate.soc.network.pos <- function(gbi, metadata, threshold, season, df){
   
   # subset to the threshold
   gbi.sub <- gbi[,colSums(gbi)>=threshold]

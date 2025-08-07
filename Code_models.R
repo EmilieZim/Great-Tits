@@ -25,6 +25,7 @@ library(ggplot2)
 library(ggpubr)
 library(lme4)
 library(lmerTest)
+library(lubridate)
 library(officer)
 library(performance)
 library(psych)
@@ -38,11 +39,6 @@ library(tidyr)
 
 
 # 1.2) Extract order of arrival at feeders --------------------------------
-
-# Note that you can load the input data directly here, but we also provide code to replicate the data extraction from the raw data here (network_data_prep.R)
-
-
-# 1.3) Load data ----------------------------------------------------------
 
 # this contains the complete data set for analysis the leader follower dynamics
 network.pos.all.seasons <- read.delim("data/leader_follower_data_all_seasons.txt", sep=" ")
@@ -70,37 +66,145 @@ names(network.pos.all.seasons)
 # "species_prop": species prevalence as a proportion of the total flock size (n_species/flock_size)
 
 
-# remove group sizes of 1 
-network.pos.all.seasons <- subset(network.pos.all.seasons, network.pos.all.seasons$flock_size>1)
+# 2) Validate species territoriality --------------------------------------
+
+
+# 2.1) Extracting territoriality ------------------------------------------
+
+# includes all group sizes (also lone birds)
 
 # how many data points per group size per species?
 table(network.pos.all.seasons$species, network.pos.all.seasons$flock_size)
 
-# add number of feeders
+# extract per season per bird:
+# - how many feeders did it visit
+# - how many times was it registered in a season
+# - the number of unique days it was registered per season
 
-location_counts <- network.pos.all.seasons %>%
-  group_by(PIT, season) %>%
-  summarise(n_feeders = n_distinct(location), .groups = "drop")
+library(lubridate)
 
-network.pos.all.seasons <- network.pos.all.seasons %>%
-  left_join(location_counts, by = c("PIT", "season"))
+territoriality_df <- network.pos.all.seasons %>%
+  mutate(
+    date_time = ymd_hms(Date.Time, tz = "UTC"),        # parse full timestamp
+    date = as.Date(date_time)                          # extract date only
+  ) %>%
+  group_by(PIT, season, species) %>%
+  summarise(
+    n_feeders = n_distinct(location),
+    n_unique_days = n_distinct(date),
+    n_obs = n(),
+    .groups = "drop"
+  )
 
 
-# 1.4) Summarize individual level data ------------------------------------
+# calculate the number of visits per feeder as a measure of territorialiy
+# more territorial = more visits per feeder
+territoriality_df$visits_per_feeder <- territoriality_df$n_obs/territoriality_df$n_feeders
+
+# subset to one value per 
+head(territoriality_df)
+
+# we use these two measures as validation for territoriality
+boxplot(territoriality_df$n_unique_days~territoriality_df$species)
+boxplot(territoriality_df$visits_per_feeder~territoriality_df$species)
+
+
+# 2.2) Run model territoriality -------------------------------------------
+
+  
+# we run a multivariate model to test whether the number of visits per feeder and the number of days a bird was observed in a given season is explained by species and season
+model_territoriality <- brm(
+  formula = mvbind(visits_per_feeder, n_unique_days) ~  season*species + (1 | PIT),
+  data = territoriality_df,
+  cores = 4,
+  chains = 4,
+  iter = 4000)
+
+#save(model_territoriality, file="model output/model_territoriality.RDA")
+load("model output/model_territoriality.RDA")
+
+
+
+# 2.3) Model checks -------------------------------------------------------
+
+
+
+# 2.4) Extract effects  ---------------------------------------------------
+
+# generate emmeans etc
+
+
+# 2.5) Plot ---------------------------------------------------------------
+
+plot(conditional_effects(model_territoriality))
+
+
+
+# 3) Leadership probability -----------------------------------------------
+
+
+# 3.1) Data prep ----------------------------------------------------------
+
+# since we are interested in whether leadership probability is predicted by territoriality in mixed-species flocks when some birds are more territorial than others, we restrict the data set to groups with a minimum of 2 birds and those groups that have both territorial (nuthatches, marsh tits) and non-territorial (great tits, blue tits) birds
+
+# remove group sizes of 1 
+network.pos.all.seasons <- subset(network.pos.all.seasons, network.pos.all.seasons$flock_size>1)
+
+# filter to only include mixed groups
+# Define species categories
+territorial <- c("MARTI", "NUTHA")
+non_territorial <- c("GRETI", "BLUTI")
+
+# Identify flocks with both territorial and non-territorial species
+mixed_groups <- network.pos.all.seasons %>%
+  group_by(group) %>%
+  summarise(
+    has_territorial = any(species %in% territorial),
+    has_non_territorial = any(species %in% non_territorial),
+    .groups = "drop"
+  ) %>%
+  filter(has_territorial & has_non_territorial) %>%
+  pull(group)
+
+# Filter original data
+network.pos.all.seasons.sub <- network.pos.all.seasons %>%
+  filter(group %in% mixed_groups)
+
+# how many data points per group size per species?
+table(network.pos.all.seasons.sub$species, network.pos.all.seasons.sub$flock_size)
 
 # Summarize data at the PIT × season level
-model_data <- network.pos.all.seasons %>%
-  group_by(PIT, season, species, age_in_2020, n_feeders) %>%
+leadership_data <- network.pos.all.seasons.sub %>%
+  # Convert Date.Time to Date class first (adjust format if needed)
+  mutate(date = ymd_hms(as.character(Date.Time)) %>% as.Date()) %>%
+  group_by(PIT, season, species, age_in_2020) %>%
   summarise(
     n_leader = sum(leader.follower == "leader"),
+    n_total_log = log(n()),
     n_total = n(),
     expected_leaders = sum(1 / flock_size),
-    degree = mean(degree),
-    betweenness = mean(betweenness),
+    degree_log = log(degree[1] + 1e-6),# we only have one value per season per bird, so we just the first one. We take the log and add a small constant for values of 0
+    betweenness_log = log(betweenness[1] + 1e-6),
+    n_unique_days = n_distinct(date),   # this serves as a territoriality measure
     .groups = "drop"
-  ) 
+  )
 
+head(leadership_data)
 
+names(leadership_data)
+# elephant: please fill in details
+
+# PIT:
+# season:
+# species:
+# age_in_2020:
+# n_feeders
+# n_leader
+# n_total_log:
+# expected leaders: 
+# degree_log:
+# betweenness_log:
+# n_unique_days:
 
 # 3) Follower-leader dynamics ---------------------------------------------
 
@@ -108,87 +212,74 @@ model_data <- network.pos.all.seasons %>%
 # 3.1) Calculate VIFs -----------------------------------------------------
 
 # we first run a simple regression (no interactions) to look at collinearity between predictors
-model_order_vif <- lm(n_leader ~  species + scale(n_total) + season + age_in_2020 + scale(degree) + scale(betweenness) + n_feeders, data= model_data)
+model_order_vif <- lm(n_leader ~  species + season + age_in_2020 + scale(degree_log) + scale(betweenness_log), data= leadership_data)
 
 vif(model_order_vif)
 
 # GVIF Df GVIF^(1/(2*Df))
-# species            1.814319  3        1.104381
-# scale(n_total)     2.251515  1        1.500505
-# season             2.246371  3        1.144406
-# age_in_2020        1.145059  1        1.070074
-# scale(degree)      2.727523  1        1.651521
-# scale(betweenness) 1.897293  1        1.377423
-# n_feeders          1.416549  1        1.190189
-
-summary(model_order_vif)
+# species                1.228948  3        1.034957
+# season                 1.850587  3        1.108030
+# age_in_2020            1.138519  1        1.067014
+# scale(degree_log)      1.840465  1        1.356637
+# scale(betweenness_log) 1.333482  1        1.154765
 
 
 # all vifs <5, so we can include all of them
 
 
-# 3.2) Global model -------------------------------------------------------
+# 3.2) run the model -------------------------------------------------------
 
 # we run a model with the number of times a bird was the leader in a given season.
 # we include individual level predictors, as well as the expected number of times the bird is expected to be a leader by chance based on the flock sizes
 # e.g. if a bird was in three flocks of 2,3 and 4 birds, the expected chance of being a leader across the three flocks is 1/2 + 1/3 + 1/4 = 1.08333
-# note: n_total is the total number of visits to any feeder (controlling for presence in the study area and knowledge about local resources)
 
-
-glob_model <- brm(
-  formula = n_leader ~ season * species + scale(degree) + scale(betweenness) +
-    offset(log(expected_leaders)) +age_in_2020 + scale(n_total) +
+leadership_model <- brm(
+  formula = n_leader ~ season*species + scale(degree_log) + scale(betweenness_log) + season*age_in_2020 +
+    offset(log(expected_leaders)) +
     (1 | PIT),
-  data = model_data,
+  data = leadership_data,
   family = poisson(),
-  control = list(adapt_delta = 0.99),
+  control = list(adapt_delta = 0.95, max_treedepth = 12),
   cores = 4, chains = 4, iter = 4000
 )
 
-#save(glob_model, file="model output/glob_model.RDA")
-load("model output/glob_model.RDA")
 
-# SW: I have updated things until here
+#save(leadership_model, file="model output/leadership_model.RDA")
+load("model output/leadership_model.RDA")
 
-# Next steps:
-# 1) check for overdispersion
-# 2) perform model checks
-# 3) extract summary tables and emmeans
-# 3) create plots
 
-summary(glob_model)
+summary(leadership_model)
 
 
 # 3.3) Model checks -------------------------------------------------------
 
 
 # check how well it fits
-pp_check(glob_model, ndraws = 100)
-# looks like a very good fit
-# the asymmetry means that birds are more likely to be followers (0) than leaders (1), which makes sense
+pp_check(leadership_model, ndraws = 100)
+# looks like a good fit
 
-plot(glob_model)
+plot(leadership_model)
 # stationarity and mixing are good
 
 # have a first look at the plot (conditional effects)
-glob_model_conditional_effects <- plot(conditional_effects(glob_model, re_formula = NA))
+leadership_model_conditional_effects <- plot(conditional_effects(leadership_model, re_formula = NA))
 
 # a 0 here means to a follower (baseline)
 # formula = NA excludes random effects
 
 # extract an R2 for our model
-R2 <- performance::r2_bayes(glob_model)
-# Bayesian R2 with Compatibility Interval
+R2 <- performance::r2_bayes(leadership_model)
+# # Bayesian R2 with Compatibility Interval
 # 
-# Conditional R2: 0.276 (95% CI [0.273, 0.278])
-# Marginal R2: 0.279 (95% CI [0.275, 0.285])
+# Conditional R2: 0.948 (95% CI [0.933, 0.960])
+# Marginal R2: 0.910 (95% CI [0.878, 0.931])
 
 # 3.4) Summary table ------------------------------------------------------
 
 
 ##make a table with the summary
-summary_glob_model <- summary(glob_model)
-fixed_effects <- as.data.frame(summary_glob_model$fixed)
+summary_leadership_model <- summary(leadership_model)
+fixed_effects <- as.data.frame(summary_leadership_model$fixed)
 fixed_effects <- tibble::rownames_to_column(fixed_effects, var = "Term")
 fixed_effects$Term <- c("Intercept", "Great tit", "Marsh tit", "Nuthatch",
                    "Spring","Summer", "Winter",
@@ -210,15 +301,15 @@ flextable_table <- fixed_effects %>%
 
 library(officer)
 
-doc_glob_model <- read_docx() %>%
+doc_leadership_model <- read_docx() %>%
   body_add_flextable(flextable_table)
 
-print(doc_glob_model, target = "Plots and tables/fixed_effects_final_glob_model.docx")
+print(doc_leadership_model, target = "Plots and tables/fixed_effects_final_leadership_model.docx")
 
 
 # 3.5) Plot ---------------------------------------------------------------
 
-##plot of the summary output of the glob_model
+##plot of the summary output of the leadership_model
 library(ggpubr)
 network.pos.all.seasons$season <- as.factor(network.pos.all.seasons$season)
 levels(network.pos.all.seasons$season)
@@ -244,7 +335,7 @@ ggarrange(
   
   #First plot: interaction between species and season
   {
-    p <- glob_model_conditional_effects$`species:season`
+    p <- leadership_model_conditional_effects$`species:season`
     for (i in seq_along(p$layers)) {
       if (inherits(p$layers[[i]]$geom, "GeomPoint")) {
         p$layers[[i]]$aes_params$size <- 2.5  # smaller points
@@ -282,7 +373,7 @@ ggarrange(
   
   # Second plot: interaction between season and age
   {
-    p <- glob_model_conditional_effects$`season:age_in_2020`
+    p <- leadership_model_conditional_effects$`season:age_in_2020`
     for (i in seq_along(p$layers)) {
       if (inherits(p$layers[[i]]$geom, "GeomPoint")) {
         p$layers[[i]]$aes_params$size <- 2.5
@@ -314,7 +405,7 @@ ggarrange(
   },
   #Third plot : betweenness centrality
   {
-    ce <- conditional_effects(glob_model, effects = "betweenness")$betweenness
+    ce <- conditional_effects(leadership_model, effects = "betweenness")$betweenness
     
     ggplot(ce, aes(x = betweenness, y = estimate__)) +
       geom_ribbon(aes(ymin = lower__, ymax = upper__), fill = "grey80") +
@@ -328,7 +419,7 @@ ggarrange(
   
   #Fourth plot: degree centrality
   {
-    ce_degree <- glob_model_conditional_effects$degree$data
+    ce_degree <- leadership_model_conditional_effects$degree$data
     
       ggplot(ce_degree, aes(x = degree, y = estimate__)) +
       geom_ribbon(aes(ymin = lower__, ymax = upper__), fill = "grey80", alpha = 0.5) +  # CI ribbon in grey
@@ -345,7 +436,7 @@ ggarrange(
 
 
 
-ggsave(file="Plots and tables/plot_glob_model.tiff", width=8.5, height=6.5)
+ggsave(file="Plots and tables/plot_leadership_model.tiff", width=8.5, height=6.5)
 
 
 #display.brewer.all()
@@ -356,7 +447,7 @@ ggsave(file="Plots and tables/plot_glob_model.tiff", width=8.5, height=6.5)
 # 3.6) Compute species comparison -----------------------------------------
 
 # the estimates are expressed in their logit scale so here transform them into odds ratio's
-exp(fixef(glob_model))
+exp(fixef(leadership_model))
 # Estimate Est.Error       Q2.5       Q97.5
 # Intercept                        0.21954653  1.296610 0.13148467  0.36442835
 # speciesGRETI                     0.25333936  1.342641 0.14214456  0.45192419
@@ -386,7 +477,7 @@ exp(fixef(glob_model))
 
 
 # Compute marginal means for the species variable
-species_emm <- emmeans(glob_model, ~ species)
+species_emm <- emmeans(leadership_model, ~ species)
 # Pairwise comparisons between species levels
 species_contrasts <- contrast(species_emm, method = "pairwise")
 species_contrasts
@@ -406,7 +497,7 @@ species_contrasts
 
 
 # Marginal means for species by season
-species_season_emm <- emmeans(glob_model, ~ species | season)
+species_season_emm <- emmeans(leadership_model, ~ species | season)
 # Pairwise comparisons within each season
 species_season_contrasts <- contrast(species_season_emm, method = "pairwise")
 species_season_contrasts
@@ -497,12 +588,12 @@ library(officer)
 doc_pariwise_comparisons <- read_docx() %>%
   body_add_flextable(pairwise_table)
 
-print(doc_pariwise_comparisons, target = "Plots and tables/pairwise_contrasts_glob_model.docx")
+print(doc_pariwise_comparisons, target = "Plots and tables/pairwise_contrasts_leadership_model.docx")
 
 # for age
 
 # Marginal means for species by season
-age_season_emm <- emmeans(glob_model, ~ age_in_2020 | season)
+age_season_emm <- emmeans(leadership_model, ~ age_in_2020 | season)
 # Pairwise comparisons within each season
 age_season_contrasts <- contrast(age_season_emm, method = "pairwise")
 age_season_contrasts
@@ -534,7 +625,115 @@ age_season_contrasts
 # Can you do the emmeans for age across seasons as well?
 
 
-# 3.8) Extract flock sizes in each season -------------------------------------------------------------------
+# 4) Species composition --------------------------------------------------
+
+# SW: I will run it over night, but we might drop it. 
+
+# does species composition influence which species leads?
+
+
+# 4.1) Compute proportion of species in each flock ------------------------
+
+
+# we here work with the full data set (but excluding flock sizes of 1)
+head(network.pos.all.seasons)
+
+# get the proportion of species for each flock
+
+# Count number of individuals per species in each group
+species_counts_wide <- network.pos.all.seasons %>%
+  group_by(group, species) %>%
+  summarise(n_species_individuals = n(), .groups = "drop") %>%
+  pivot_wider(
+    names_from = species,
+    values_from = n_species_individuals,
+    values_fill = list(n_species_individuals = 0)  # fill missing species with 0
+  )
+
+species_composition <- left_join(network.pos.all.seasons, species_counts_wide, by=c("group"))
+
+species_composition$prop_GRETI <- species_composition$GRETI/species_composition$flock_size
+species_composition$prop_BLUTI <- species_composition$BLUTI/species_composition$flock_size
+species_composition$prop_NUTHA <- species_composition$NUTHA/species_composition$flock_size
+species_composition$prop_MARTI <- species_composition$MARTI/species_composition$flock_size
+
+# and subset it to leaders only
+
+species_composition <- subset(species_composition, species_composition$leader.follower=="leader")
+
+head(species_composition)
+
+# please fill in the details (can just copy paste a lot from above)
+
+names(species_composition)
+# PIT:
+# group:
+# Date.Time:
+# Location:
+# week
+# visit.duration
+# leader.follower
+# n_visits
+# species
+# age in 2020
+# season
+# degree
+# betweenness
+# n_species
+# flock_size
+# species_prop
+# n_feeders
+# GRETI:
+# MARTI:
+# NUTHA:
+# BLUTI:
+# prop_GRETI:
+# prop_BLUTI:
+# prop_NUTHA:
+# prop_MARTI:
+
+# make sure it is a factor
+species_composition$species <- factor(species_composition$species, levels = c("GRETI", "BLUTI", "MARTI", "NUTHA"))
+
+species_composition$season <- as.factor(species_composition$season)
+
+
+
+# 4.2) Calculate VIFs -----------------------------------------------------
+
+# NOTE: we need to drop one of the proportions as the proprtions are perfectly collinear (sum up to 1). So it will estimate the difference relative to the ommitted category
+# NOTE that we cannot use species as a response variable for calculating vifs, so we just use flock_size (it doesn't matter which side the covariates are on)
+
+model_comp_vif <- lm(flock_size ~  season + prop_GRETI + prop_NUTHA + prop_MARTI,  data= species_composition)
+
+vif(model_comp_vif, type="terms")
+
+
+# GVIF Df GVIF^(1/(2*Df))
+# season     1.445891  3        1.063382
+# prop_GRETI 2.756216  1        1.660186
+# prop_NUTHA 1.911172  1        1.382452
+# prop_MARTI 2.280278  1        1.510059
+
+# 4.3) Model species composition ------------------------------------------
+
+species_comp_model <- brm(
+  formula = species ~ season * prop_GRETI + season * prop_NUTHA + season * prop_MARTI + season * scale(flock_size) + (1|PIT),
+  data = species_composition,
+  family = categorical(),
+  control = list(adapt_delta = 0.99, max_treedepth = 15),
+  cores = 4, chains = 2, iter = 6000
+)
+
+
+save(species_comp_model, file="model output/species_comp_model.RDA")
+
+# SW: continue here with model evaluation and getting outputs and plots
+
+
+
+
+# 5) Extract flock sizes in each season -------------------------------------------------------------------
 
 #how many flocks there are in each season
 #All groups contain at least 2 individuals
@@ -592,7 +791,7 @@ network.pos.all.seasons %>%
     min_flock_size = min(flock_size),
     max_flock_size = max(flock_size)
   )
-^^^^
+
 # min_flock_size max_flock_size
 # 1              2             22
 
