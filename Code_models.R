@@ -12,6 +12,7 @@
 ##Library
 library(asnipe)
 library(brms)
+library(broom.mixed)
 library(car)
 library(corrplot)
 library(data.table)
@@ -34,6 +35,7 @@ library(rethinking)
 library(rptR)
 library(rstan)
 library(stringr)
+library(tibble)
 library(tidybayes)
 library(tidyr)
 
@@ -111,7 +113,7 @@ boxplot(territoriality_df$visits_per_feeder~territoriality_df$species)
 
 # 2.2) Run model territoriality -------------------------------------------
 
-  
+# 2.2.1) model territoriality  -------------------------------------------
 # we run a multivariate model to test whether the number of visits per feeder and the number of days a bird was observed in a given season is explained by species and season
 model_territoriality <- brm(
   formula = mvbind(visits_per_feeder, n_unique_days) ~  season*species + (1 | PIT),
@@ -123,22 +125,330 @@ model_territoriality <- brm(
 #save(model_territoriality, file="model output/model_territoriality.RDA")
 load("model output/model_territoriality.RDA")
 
+summary(model_territoriality)
+
+# 2.2.2) model territoriality -------------------------------------------
+###Extract the summary output into a table
+sum_mod <- summary(model_territoriality)
+
+#(fixed effects)
+terr_fixed_df <- as.data.frame(sum_mod$fixed)
+
+terr_fixed_df <- terr_fixed_df %>%
+  mutate(Term = rownames(terr_fixed_df)) %>%
+  select(Term, everything())
+
+#Better seperate the names of the Terms
+terr_fixed_df <- terr_fixed_df %>%
+  separate(Term, into = c("Response", "Term"), sep = "_", extra = "merge", fill = "right") %>%
+  mutate(
+    Response = case_when(
+      Response == "visitsperfeeder" ~ "Visits per feeder",
+      Response == "nuniquedays" ~ "Number of unique days",
+      TRUE ~ Response
+    )
+  )
+
+#change the names of the Terms
+terr_fixed_df <- terr_fixed_df %>%
+  rowwise() %>%    # Work on each row individually
+  mutate(Term = if_else(
+    Term == "Intercept", "Intercept",
+    if_else(
+      !grepl(":", Term), 
+      case_when(
+        Term == "seasonspring" ~ "Spring",
+        Term == "seasonsummer" ~ "Summer",
+        Term == "seasonwinter" ~ "Winter",
+        Term == "speciesGRETI" ~ "Great tit",
+        Term == "speciesMARTI" ~ "Marsh tit",
+        Term == "speciesNUTHA" ~ "Nuthatch",
+        TRUE ~ Term
+      ),
+      {
+        parts <- strsplit(Term, ":")[[1]]
+        recode_part <- function(x) {
+          x <- gsub("^season", "", x)
+          x <- gsub("^species", "", x)
+          switch(x,
+                 spring = "Spring",
+                 summer = "Summer",
+                 winter = "Winter",
+                 GRETI = "Great tit",
+                 MARTI = "Marsh tit",
+                 NUTHA = "Nuthatch",
+                 x
+          )
+        }
+        paste(sapply(parts, recode_part), collapse = ": ")
+      }
+    )
+  )) %>%
+  ungroup()
+
+#Select what goes into the table and make the table
+colnames(terr_fixed_df)
+terr_table <- terr_fixed_df %>%
+  select("Response", "Term", "Estimate", "Est.Error", "l-95% CI", "u-95% CI", "Rhat") %>%
+  rename(
+    Estimate = "Estimate",
+    Est_Error = "Est.Error",
+    CI_Lower = "l-95% CI",
+    CI_Upper = "u-95% CI",
+    Rhat = Rhat
+  )
+
+
+terr_table <- flextable(terr_table) %>%
+  autofit()
+
+# 6. Export to Word
+doc <- read_docx()
+doc <- body_add_flextable(doc, value = terr_table)
+print(doc, target = "Plots and tables/model_territoriality_summary.docx")
+
 
 
 # 2.3) Model checks -------------------------------------------------------
+pp_check(model_territoriality, ndraws = 100, resp = "visitsperfeeder")
+pp_check(model_territoriality, ndraws = 100, resp = "nuniquedays")
+plot(model_territoriality)
 
 
 
 # 2.4) Extract effects  ---------------------------------------------------
+#emmeans
+territoriality_emm <- emmeans(model_territoriality, ~ species)
+territoriality_contrasts <- contrast(territoriality_emm, method = "pairwise")
+#contrast      estimate lower.HPD upper.HPD
+#BLUTI - GRETI  -0.0056     -5.48      5.21
+#BLUTI - MARTI -23.5192    -32.30    -14.98
+#BLUTI - NUTHA -30.0212    -40.99    -19.49
+#GRETI - MARTI -23.5134    -31.20    -16.10
+#GRETI - NUTHA -30.1045    -40.18    -19.94
+#MARTI - NUTHA  -6.5644    -18.84      5.61
 
-# generate emmeans etc
+#emmeans within each season
+terr_season_emm <- emmeans(model_territoriality, ~ species | season)
+terr_season_emm
+#season = autumn:
+#species emmean lower.HPD upper.HPD
+#BLUTI    15.37      4.54      25.4
+#GRETI    10.79      5.20      16.4
+#MARTI    35.00     22.64      48.5
+#NUTHA    57.41     35.93      80.5
+
+#season = spring:
+#  species emmean lower.HPD upper.HPD
+#BLUTI    26.91     20.90      32.7
+#GRETI    21.29     16.51      25.9
+#MARTI    29.47     17.22      41.8
+#NUTHA    30.23     12.79      47.2
+
+#season = summer:
+#  species emmean lower.HPD upper.HPD
+#BLUTI     8.15     -3.24      19.1
+#GRETI    18.48     14.32      23.0
+#MARTI    31.90     17.03      46.4
+#NUTHA    43.07     27.17      59.2
+
+#season = winter:
+#  species emmean lower.HPD upper.HPD
+#BLUTI    25.91     20.23      31.3
+#GRETI    25.66     21.80      29.3
+#MARTI    74.21     63.09      84.9
+#NUTHA    65.96     50.39      82.3
+
+terr_species_season_contrasts <- contrast(terr_season_emm, method = "pairwise")
+#season = autumn:
+#  contrast      estimate lower.HPD upper.HPD
+#BLUTI - GRETI    4.470     -7.26     16.55
+#BLUTI - MARTI  -19.721    -35.21     -2.02
+#BLUTI - NUTHA  -42.360    -66.51    -17.51
+#GRETI - MARTI  -24.207    -37.55     -9.58
+#GRETI - NUTHA  -46.651    -69.93    -24.01
+#MARTI - NUTHA  -22.459    -47.63      3.52
+
+#season = spring:
+#  contrast      estimate lower.HPD upper.HPD
+#BLUTI - GRETI    5.699     -2.07     13.17
+#BLUTI - MARTI   -2.594    -16.50     10.63
+#BLUTI - NUTHA   -3.119    -21.33     14.86
+#GRETI - MARTI   -8.227    -21.55      4.80
+#GRETI - NUTHA   -8.792    -27.59      8.11
+#MARTI - NUTHA   -0.643    -21.42     21.09
+
+#season = summer:
+#  contrast      estimate lower.HPD upper.HPD
+#BLUTI - GRETI  -10.403    -22.32      1.72
+#BLUTI - MARTI  -23.794    -42.55     -5.83
+#BLUTI - NUTHA  -34.993    -54.69    -15.08
+#GRETI - MARTI  -13.423    -28.45      2.18
+#GRETI - NUTHA  -24.611    -40.83     -7.39
+#MARTI - NUTHA  -11.083    -32.64     10.91
+
+#season = winter:
+#  contrast      estimate lower.HPD upper.HPD
+#BLUTI - GRETI    0.316     -6.55      7.19
+#BLUTI - MARTI  -48.369    -60.36    -35.51
+#BLUTI - NUTHA  -39.980    -57.02    -23.15
+#GRETI - MARTI  -48.554    -59.96    -36.76
+#GRETI - NUTHA  -40.282    -56.70    -24.21
+#MARTI - NUTHA    8.212    -10.83     28.53
+
+plot(territoriality_emm)
+plot(terr_season_emm)
+
+#extracting the results to make a table
+terr_species_season_contrasts_df <- as.data.frame(terr_species_season_contrasts)
+head(terr_species_season_contrasts_df)
+terr_species_season_contrasts_df$odds <- exp(terr_species_season_contrasts_df$estimate)#gives the odds instead of log odds
+terr_emm_table <- terr_species_season_contrasts_df %>%
+  dplyr::select(contrast, season, estimate, lower.HPD, upper.HPD, odds)
+species_names <- c(
+  "BLUTI" = "Blue tit",
+  "GRETI" = "Great tit",
+  "MARTI" = "Marsh tit",
+  "NUTHA" = "Nuthatch")
+
+
+terr_emm_table <- terr_emm_table %>%
+  mutate(contrast = str_replace_all(contrast, species_names))
+colnames(terr_emm_table) <- c("Contrast", "Season", "Estimate", "Lower_HPD", "Upper_HPD", "Odds")
+
+terr_emm_table <- terr_emm_table %>%
+  dplyr::mutate(across(where(is.numeric), ~ round(.x, 4)))
+
+terr_pairwise_table <- flextable(terr_emm_table) %>%
+  autofit() %>%
+  set_caption("Territoriality Pairwise Contrasts of Species by Season")
+
+
+doc_pariwise_comparisons_terr <- read_docx() %>%
+  body_add_flextable(terr_pairwise_table)
+
+print(doc_pariwise_comparisons_terr, target = "Plots and tables/pairwise_contrasts_territoriality.docx")
 
 
 # 2.5) Plot ---------------------------------------------------------------
 
 plot(conditional_effects(model_territoriality))
 
+#extract predicted means and CI from the brm model
+# First response variable
+pred_visits <- fitted(
+  model_territoriality,
+  resp = "visitsperfeeder",
+  newdata = expand.grid(
+    season = unique(territoriality_df$season),
+    species = unique(territoriality_df$species),
+    PIT = NA   # random effect set to population-level
+  ),
+  re_formula = NA,     # exclude random effects
+  summary = TRUE
+) %>%
+  as.data.frame() %>%
+  bind_cols(expand.grid(
+    season = unique(territoriality_df$season),
+    species = unique(territoriality_df$species)
+  ))
 
+# Second response variable
+pred_days <- fitted(
+  model_territoriality,
+  resp = "nuniquedays",
+  newdata = expand.grid(
+    season = unique(territoriality_df$season),
+    species = unique(territoriality_df$species),
+    PIT = NA
+  ),
+  re_formula = NA,
+  summary = TRUE
+) %>%
+  as.data.frame() %>%
+  bind_cols(expand.grid(
+    season = unique(territoriality_df$season),
+    species = unique(territoriality_df$species)
+  ))
+
+#my colors:
+my_colors <- c("spring" = "#56ae6c", 
+               "summer" = "#8960b3", 
+               "winter" = "#b0923b", 
+               "autumn" = "#ba495b")
+
+my_colors_sp <- c("BLUTI" = "#b94b75",
+                  "GRETI" = "#72ac5c",
+                  "MARTI" = "#7f64b9",
+                  "NUTHA" = "#bb7438")
+
+#change the order of the levels within the season and change the name
+pred_visits$season <- factor(pred_visits$season,
+                             levels = c("summer", "spring", "autumn", "winter"),
+                             labels = c("Summer", "Spring", "Autumn", "Winter"))
+pred_days$season <- factor(pred_days$season,
+                             levels = c("summer", "spring", "autumn", "winter"),
+                             labels = c("Summer", "Spring", "Autumn", "Winter"))
+
+#the two plots
+pred_visits$species <- factor(pred_visits$species,
+                              levels = c("BLUTI", "GRETI", "MARTI", "NUTHA"))
+p1 <- ggplot(pred_visits, aes(x = season, y = Estimate,
+                              color = species, group = species,
+                              shape = species)) +
+  geom_point(position = position_dodge(width = 0.4), size = 3) +
+  geom_errorbar(aes(ymin = Q2.5, ymax = Q97.5),
+                position = position_dodge(width = 0.4), width = 0.2) +
+  scale_shape_manual(
+    values = c("BLUTI" = 16, "GRETI" = 18, "MARTI" = 15, "NUTHA" = 17),
+    labels = c("BLUTI" = "Blue tits",
+               "GRETI" = "Great tits",
+               "MARTI" = "Marsh tits",
+               "NUTHA" = "Nuthatches")
+  ) +
+  scale_color_manual(
+    values = my_colors_sp,
+    labels = c("BLUTI" = "Blue tits",
+               "GRETI" = "Great tits",
+               "MARTI" = "Marsh tits",
+               "NUTHA" = "Nuthatches"
+               )
+  ) +
+  labs(y = "Estimated visits", x = "") +
+  theme_minimal()
+
+# Second plot
+p2 <- ggplot(pred_days, aes(x = season, y = Estimate,
+                            color = species, group = species,
+                            shape = species)) +
+  geom_point(position = position_dodge(width = 0.4), size = 3) +
+  geom_errorbar(aes(ymin = Q2.5, ymax = Q97.5),
+                position = position_dodge(width = 0.4), width = 0.2) +
+  scale_shape_manual(
+    values = c("BLUTI" = 16, "GRETI" = 18, "MARTI" = 15, "NUTHA" = 17),
+    labels = c("BLUTI" = "Blue tits",
+               "GRETI" = "Great tits",
+               "MARTI" = "Marsh tits",
+               "NUTHA" = "Nuthatches")
+  ) +
+  scale_color_manual(
+    values = my_colors_sp,
+    labels = c("BLUTI" = "Blue tits",
+               "GRETI" = "Great tits",
+               "MARTI" = "Marsh tits",
+               "NUTHA" = "Nuthatches")
+  ) +
+  labs(y = "Estimated days", x = "") +
+  theme_minimal()
+
+#plot plot1 and2 together
+ggarrange(
+  p1, p2,
+  labels = c("A", "B"),
+  ncol = 2, nrow = 1,
+  common.legend = TRUE,
+  legend = "bottom"
+)
 
 # 3) Leadership probability -----------------------------------------------
 
@@ -192,19 +502,17 @@ leadership_data <- network.pos.all.seasons.sub %>%
 head(leadership_data)
 
 names(leadership_data)
-# elephant: please fill in details
-
-# PIT:
-# season:
-# species:
-# age_in_2020:
-# n_feeders
-# n_leader
-# n_total_log:
-# expected leaders: 
-# degree_log:
-# betweenness_log:
-# n_unique_days:
+# PIT: 10 digit alphanumeric code unique to each individual
+# season: summer, spring, winter, autumn
+# species: the 4 studied species (GRETI : Great tits, BLUTI: Blue tits, MARTI: Marsh tits, NUTHA: Nuthaches)
+# age_in_2020: adults or juveniles
+# n_feeders: the number of feeders (6 in total, in 6 different locations)
+# n_leader: the total number of times an individual was the leader within a season
+# n_total_log: the log of the total of birds within each season, species and age class. 
+# expected leaders: the sum of the probabilities of leading within is flock. For example, bird X was the leader in a flock of group size 2, 4 and 6, thus its probability overall to lead is : 1/2 + 1/4 + 1/6 = 0.92
+# degree_log: the log of the value of degree centrality for each individual
+# betweenness_log: the log of the value of betweenness centrality for each individual
+# n_unique_days: the number of unique days a bird was registered per season
 
 # 3) Follower-leader dynamics ---------------------------------------------
 
@@ -243,13 +551,29 @@ leadership_model <- brm(
   cores = 4, chains = 4, iter = 4000
 )
 
-
+summary(leadership_model)
 #save(leadership_model, file="model output/leadership_model.RDA")
 load("model output/leadership_model.RDA")
+load("model output/model.RDA")
 
+head(leadership_data)
+head(leadership_data2)
+leadership_data2 <- leadership_data
+leadership_data2$degree <- exp(leadership_data2$degree_log)
+leadership_data2$betweenness <-exp(leadership_data2$betweenness_log)
 
-summary(leadership_model)
+detach("package:rethinking", unload=TRUE)
+leadership_model_bis <-  brm(
+  formula = n_leader ~ season*species + scale(degree) + scale(betweenness) + season*age_in_2020 +
+    offset(log(expected_leaders)) +
+    (1 | PIT),
+  data = leadership_data2,
+  family = poisson(),
+  control = list(adapt_delta = 0.95, max_treedepth = 12),
+  cores = 4, chains = 4, iter = 4000
+)
 
+summary(leadership_model_bis)
 
 # 3.3) Model checks -------------------------------------------------------
 
@@ -289,15 +613,25 @@ fixed_effects$Term <- c("Intercept", "Great tit", "Marsh tit", "Nuthatch",
                    "Great tit x Winter", "Marsh tit x Winter", "Nuthatch x Winter", 
                    "Spring x Age(Juvenile)", "Summer x Age(Juvenile)", "Winter x Age(Juvenile)" )
 fixed_effects <- fixed_effects[, 1:(ncol(fixed_effects) - 2)]
+colnames(fixed_effects)
+
 fixed_effects <- fixed_effects %>%
-  dplyr::mutate(across(where(is.numeric), ~ round(.x, 2)))
+  mutate(
+    Odds = exp(Estimate),       # convert log-odds to odds ratios first
+    Odds = round(Odds, 2),  # round Estimate
+    # Round other numeric columns except Estimate
+    across(
+      .cols = where(is.numeric) & !all_of("Odds"), 
+      ~ round(.x, 2)
+    )
+  )
 
 library(flextable)
 
 flextable_table <- fixed_effects %>%
   flextable() %>%
   autofit() %>%
-  set_caption("Summary of Fixed Effects from the final Model")
+  set_caption("Summary of Fixed Effects from the final leadership Model")
 
 library(officer)
 
