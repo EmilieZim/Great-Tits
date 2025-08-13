@@ -782,6 +782,7 @@ ggsave(file="Plots and tables/plot_leadership_model.tiff", width=8.5, height=6.5
 
 # the estimates are expressed in their logit scale so here transform them into odds ratio's
 exp(fixef(leadership_model))
+
 # Estimate Est.Error       Q2.5       Q97.5
 # Intercept                        0.21954653  1.296610 0.13148467  0.36442835
 # speciesGRETI                     0.25333936  1.342641 0.14214456  0.45192419
