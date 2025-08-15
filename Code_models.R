@@ -110,22 +110,43 @@ head(territoriality_df)
 boxplot(territoriality_df$n_unique_days~territoriality_df$species)
 boxplot(territoriality_df$visits_per_feeder~territoriality_df$species)
 
+# set class of visits per feeder to integer
+
+territoriality_df$visits_per_feeder <- as.integer(territoriality_df$visits_per_feeder)
 
 # 2.2) Run model territoriality -------------------------------------------
 
 # 2.2.1) model territoriality  -------------------------------------------
 # we run a multivariate model to test whether the number of visits per feeder and the number of days a bird was observed in a given season is explained by species and season
-model_territoriality <- brm(
-  formula = mvbind(visits_per_feeder, n_unique_days) ~  season*species + (1 | PIT),
+
+
+model_territoriality_num_visits <- brm(
+  bf(visits_per_feeder ~ season*species + (1|PIT), family = negbinomial()),
   data = territoriality_df,
   cores = 4,
   chains = 4,
-  iter = 4000)
+  iter = 4000
+)
 
-#save(model_territoriality, file="model output/model_territoriality.RDA")
-load("model output/model_territoriality.RDA")
+#save(model_territoriality_num_visits, file="model output/model_territoriality_num_visits.RDA")
+load("model output/model_territoriality_num_visits.RDA")
 
-summary(model_territoriality)
+
+model_territoriality_days_present <- brm(
+    bf(n_unique_days | trials(9) ~ season*species + (1|PIT), family = binomial()),
+  data = territoriality_df,
+  cores = 4,
+  chains = 4,
+  iter = 4000
+)
+
+#save(model_territoriality, file="model output/model_territoriality_days_present.RDA")
+load("model output/model_territoriality_days_present.RDA")
+
+# SW: I had to make two separate models, because emmeans does currently not work for multivariate models. You'll have to extract things separately for each model
+
+summary(model_territoriality_days_present)
+summary(model_territoriality_num_visits)
 
 # 2.2.2) model territoriality -------------------------------------------
 ###Extract the summary output into a table
@@ -298,6 +319,9 @@ terr_species_season_contrasts <- contrast(terr_season_emm, method = "pairwise")
 
 plot(territoriality_emm)
 plot(terr_season_emm)
+
+
+
 
 #extracting the results to make a table
 terr_species_season_contrasts_df <- as.data.frame(terr_species_season_contrasts)
@@ -954,116 +978,6 @@ age_season_contrasts
 # Results are given on the log odds ratio (not the response) scale. 
 # HPD interval probability: 0.95 
 
-
-# 3.7) Compute age comparisons --------------------------------------------
-
-# Can you do the emmeans for age across seasons as well?
-
-
-# 4) Species composition --------------------------------------------------
-
-# SW: I will run it over night, but we might drop it. 
-
-# does species composition influence which species leads?
-
-
-# 4.1) Compute proportion of species in each flock ------------------------
-
-
-# we here work with the full data set (but excluding flock sizes of 1)
-head(network.pos.all.seasons)
-
-# get the proportion of species for each flock
-
-# Count number of individuals per species in each group
-species_counts_wide <- network.pos.all.seasons %>%
-  group_by(group, species) %>%
-  summarise(n_species_individuals = n(), .groups = "drop") %>%
-  pivot_wider(
-    names_from = species,
-    values_from = n_species_individuals,
-    values_fill = list(n_species_individuals = 0)  # fill missing species with 0
-  )
-
-species_composition <- left_join(network.pos.all.seasons, species_counts_wide, by=c("group"))
-
-species_composition$prop_GRETI <- species_composition$GRETI/species_composition$flock_size
-species_composition$prop_BLUTI <- species_composition$BLUTI/species_composition$flock_size
-species_composition$prop_NUTHA <- species_composition$NUTHA/species_composition$flock_size
-species_composition$prop_MARTI <- species_composition$MARTI/species_composition$flock_size
-
-# and subset it to leaders only
-
-species_composition <- subset(species_composition, species_composition$leader.follower=="leader")
-
-head(species_composition)
-
-# please fill in the details (can just copy paste a lot from above)
-
-names(species_composition)
-# PIT:
-# group:
-# Date.Time:
-# Location:
-# week
-# visit.duration
-# leader.follower
-# n_visits
-# species
-# age in 2020
-# season
-# degree
-# betweenness
-# n_species
-# flock_size
-# species_prop
-# n_feeders
-# GRETI:
-# MARTI:
-# NUTHA:
-# BLUTI:
-# prop_GRETI:
-# prop_BLUTI:
-# prop_NUTHA:
-# prop_MARTI:
-
-# make sure it is a factor
-species_composition$species <- factor(species_composition$species, levels = c("GRETI", "BLUTI", "MARTI", "NUTHA"))
-
-species_composition$season <- as.factor(species_composition$season)
-
-
-
-# 4.2) Calculate VIFs -----------------------------------------------------
-
-# NOTE: we need to drop one of the proportions as the proprtions are perfectly collinear (sum up to 1). So it will estimate the difference relative to the ommitted category
-# NOTE that we cannot use species as a response variable for calculating vifs, so we just use flock_size (it doesn't matter which side the covariates are on)
-
-model_comp_vif <- lm(flock_size ~  season + prop_GRETI + prop_NUTHA + prop_MARTI,  data= species_composition)
-
-vif(model_comp_vif, type="terms")
-
-
-# GVIF Df GVIF^(1/(2*Df))
-# season     1.445891  3        1.063382
-# prop_GRETI 2.756216  1        1.660186
-# prop_NUTHA 1.911172  1        1.382452
-# prop_MARTI 2.280278  1        1.510059
-
-# 4.3) Model species composition ------------------------------------------
-
-species_comp_model <- brm(
-  formula = species ~ season * prop_GRETI + season * prop_NUTHA + season * prop_MARTI + season * scale(flock_size) + (1|PIT),
-  data = species_composition,
-  family = categorical(),
-  control = list(adapt_delta = 0.99, max_treedepth = 15),
-  cores = 4, chains = 2, iter = 6000
-)
-
-
-save(species_comp_model, file="model output/species_comp_model.RDA")
-
-# SW: continue here with model evaluation and getting outputs and plots
 
 
 
