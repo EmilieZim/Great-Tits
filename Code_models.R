@@ -110,22 +110,43 @@ head(territoriality_df)
 boxplot(territoriality_df$n_unique_days~territoriality_df$species)
 boxplot(territoriality_df$visits_per_feeder~territoriality_df$species)
 
+# set class of visits per feeder to integer
+
+territoriality_df$visits_per_feeder <- as.integer(territoriality_df$visits_per_feeder)
 
 # 2.2) Run model territoriality -------------------------------------------
 
 # 2.2.1) model territoriality  -------------------------------------------
 # we run a multivariate model to test whether the number of visits per feeder and the number of days a bird was observed in a given season is explained by species and season
-model_territoriality <- brm(
-  formula = mvbind(visits_per_feeder, n_unique_days) ~  season*species + (1 | PIT),
+
+
+model_territoriality_num_visits <- brm(
+  bf(visits_per_feeder ~ season*species + (1|PIT), family = negbinomial()),
   data = territoriality_df,
   cores = 4,
   chains = 4,
-  iter = 4000)
+  iter = 4000
+)
 
-#save(model_territoriality, file="model output/model_territoriality.RDA")
-load("model output/model_territoriality.RDA")
+#save(model_territoriality_num_visits, file="model output/model_territoriality_num_visits.RDA")
+load("model output/model_territoriality_num_visits.RDA")
 
-summary(model_territoriality)
+
+model_territoriality_days_present <- brm(
+    bf(n_unique_days | trials(9) ~ season*species + (1|PIT), family = binomial()),
+  data = territoriality_df,
+  cores = 4,
+  chains = 4,
+  iter = 4000
+)
+
+#save(model_territoriality, file="model output/model_territoriality_days_present.RDA")
+load("model output/model_territoriality_days_present.RDA")
+
+# SW: I had to make two separate models, because emmeans does currently not work for multivariate models. You'll have to extract things separately for each model
+
+summary(model_territoriality_days_present)
+summary(model_territoriality_num_visits)
 
 # 2.2.2) model territoriality -------------------------------------------
 ###Extract the summary output into a table
@@ -271,6 +292,9 @@ visits_contrasts <- contrast(emm_visits, method = "pairwise")
 
 
 plot(emm_visits)
+
+
+
 
 
 #extracting the results to make a table
@@ -964,6 +988,7 @@ age_season_contrasts
 #  contrast         estimate lower.HPD upper.HPD
 #adult - juvenile  -0.0380    -0.191    0.1076
 
+<<<<<<< HEAD
 #season = summer:
 #  contrast         estimate lower.HPD upper.HPD
 #adult - juvenile  -0.0733    -0.263    0.1073
@@ -971,6 +996,8 @@ age_season_contrasts
 #season = winter:
 #  contrast         estimate lower.HPD upper.HPD
 #adult - juvenile  -0.0677    -0.186    0.0553
+=======
+>>>>>>> 2572e529a4e1352a309822503c76c50ba9bcd145
 
 #Results are averaged over the levels of: species 
 #Point estimate displayed: median 
