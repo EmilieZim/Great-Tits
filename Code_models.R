@@ -376,8 +376,8 @@ pred_terr <- fitted(
 
 #change the order of the levels within the season and change the name
 pred_terr$season <- factor(pred_terr$season,
-                             levels = c("summer", "spring", "autumn", "winter"),
-                             labels = c("Summer", "Spring", "Autumn", "Winter"))
+                             levels = c("summer", "autumn", "winter", "spring"),
+                             labels = c("Summer", "Autumn", "Winter", "Spring"))
 
 pred_terr$species <- factor(pred_terr$species,
                               levels = c("BLUTI", "GRETI", "MARTI", "NUTHA"))
@@ -402,10 +402,10 @@ ggplot(pred_terr, aes(x = season, y = Estimate,
                "NUTHA" = "Nuthatches"
                )
   ) +
-  labs(y = "PC1 score for Territoriality", x = "") +
+  labs(y = "Territoriality [PC1 score]", x = "") +
   theme_minimal() + theme(legend.title = element_blank())
 
-ggsave(file="Plots and tables/plot_territoriality_sp_season.tiff", width=8.5, height=6.5, bg = "white")
+ggsave(file="Plots and tables/plot_territoriality_sp_season_Fig1.tiff", width=4.5, height=3.5, bg = "white")
 
 
 # 3) Leadership probability -----------------------------------------------
@@ -647,33 +647,14 @@ ggarrange(
         limits = c("summer", "autumn", "winter", "spring"),
         labels = c("summer" = "Summer", "autumn" = "Autumn", "winter" = "Winter", "spring" = "Spring")
       ) +
-      labs(x = "", y = "Leadership probability") +
+      labs(x = "", y = "Leadership events") +
       theme_bw() +
-      theme(legend.position = "none") +
+      theme(legend.position = "bottom") +
           coord_cartesian()
       
   },
   
-   # Second plot: interaction between season and betweenness (continuous)
-  {
-    ce_between <- leadership_model_conditional_effects$`betweenness_log:season`$data
-    ce_between$season <- factor(ce_between$season, 
-                               levels = c("summer", "autumn", "winter", "spring"),
-                               labels = c("Summer", "Autumn", "Winter", "Spring"))
-    
-    ggplot(ce_between, aes(x = scale(betweenness_log), y = estimate__, color = season, fill = season)) +
-      geom_ribbon(aes(ymin = lower__, ymax = upper__), alpha = 0.2, color = NA) +
-      geom_line(size = 1) +
-      scale_color_manual(values = my_colors_bis) +
-      scale_fill_manual(values = my_colors_bis) +
-      labs(x = "Betweenness centrality", y = "") +
-      theme_bw() +
-      theme(legend.position = "none") +
-      coord_cartesian() 
-      
-  },
-  
-  # Third plot: interaction between season and age
+  # Second plot: interaction between season and age
   {
     p <- leadership_model_conditional_effects$`season:age_in_2020`
     for (i in seq_along(p$layers)) {
@@ -692,13 +673,32 @@ ggarrange(
       geom_line(size = 1) +
       scale_color_manual(values = my_colors_age) +
       scale_fill_manual(values = my_colors_age) +
-      labs(x = "", y = "Leadership probability") +
+      labs(x = "", y = "") +
       theme_bw() +
       theme(legend.position = "bottom", legend.title = element_blank()) + 
       coord_cartesian()
-      
+    
+    
+  },
+  # Third plot: interaction between season and betweenness (continuous)
+  {
+    ce_between <- leadership_model_conditional_effects$`betweenness_log:season`$data
+    ce_between$season <- factor(ce_between$season, 
+                               levels = c("summer", "autumn", "winter", "spring"),
+                               labels = c("Summer", "Autumn", "Winter", "Spring"))
+    
+    ggplot(ce_between, aes(x = betweenness_log, y = estimate__, color = season, fill = season)) +
+      geom_ribbon(aes(ymin = lower__, ymax = upper__), alpha = 0.2, color = NA) +
+      geom_line(size = 1) +
+      scale_color_manual(values = my_colors_bis) +
+      scale_fill_manual(values = my_colors_bis) +
+      labs(x = "Betweenness centrality [log]", y = "Leadership events") +
+      theme_bw() +
+      theme(legend.position = "bottom", legend.title = element_blank() ) +
+      coord_cartesian() 
       
   },
+  
   
   # fourth plot: interaction between season and degree
   {
@@ -706,12 +706,12 @@ ggarrange(
     ce_degree$season <- factor(ce_degree$season, 
                                levels = c("summer", "autumn", "winter", "spring"),
                                labels = c("Summer", "Autumn", "Winter", "Spring"))
-    ggplot(ce_degree, aes(x = scale(degree_log), y = estimate__, color = season, fill = season)) +
+    ggplot(ce_degree, aes(x = degree_log, y = estimate__, color = season, fill = season)) +
       geom_ribbon(aes(ymin = lower__, ymax = upper__), alpha = 0.2, color = NA) +
       geom_line(size = 1) +
       scale_color_manual(values = my_colors_bis) +
       scale_fill_manual(values = my_colors_bis) +
-      labs(x = "Degree centrality", y = "") +
+      labs(x = "Degree centrality [log]", y = "") +
       theme_bw() +
       theme(
         legend.position = "bottom",
@@ -719,14 +719,14 @@ ggarrange(
       coord_cartesian()
   },
   
-  labels = c("a", "c", "b", "d"),
+  labels = c("a", "b", "c", "d"),
   ncol = 2, nrow = 2,
   widths = c(1, 1),   
   heights = c(1, 1),
   common.legend = FALSE
 )
 
-ggsave(file="Plots and tables/plot_leadership_model.tiff", width=8.5, height=6.5)
+ggsave(file="Plots and tables/plot_leadership_model_Fig2.tiff", width=8.5, height=6.5)
 
 
 #display.brewer.all()
@@ -848,18 +848,18 @@ lead_sp_emm_table <- lead_sp_emm_table %>%
 lead_sp_emm_table <- lead_sp_emm_table %>%
   mutate(Season = str_replace_all(Season, season_names))
 
-terr_emm_table <- terr_emm_table %>%
+lead_sp_emm_table <- lead_sp_emm_table %>%
   dplyr::mutate(across(where(is.numeric), ~ round(.x, 2)))
 
-lead_sp_pairwise_table <- flextable(terr_emm_table) %>%
+lead_sp_pairwise_table <- flextable(lead_sp_emm_table) %>%
   autofit() %>%
   set_caption("Leaderschip Pairwise Contrasts of Species by Season")
 
 
-doc_pariwise_comparisons_lead_sp <- read_docx() %>%
+doc_pairwise_comparisons_lead_sp <- read_docx() %>%
   body_add_flextable(lead_sp_pairwise_table)
 
-print(doc_pariwise_comparisons_lead_sp, target = "Plots and tables/pairwise_contrasts_sp_leadership_model.docx")
+print(doc_pairwise_comparisons_lead_sp, target = "Plots and tables/pairwise_contrasts_sp_leadership_model.docx")
 
 # for age
 
