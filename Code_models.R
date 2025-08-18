@@ -68,6 +68,19 @@ names(network.pos.all.seasons)
 # "species_prop": species prevalence as a proportion of the total flock size (n_species/flock_size)
 
 
+# extract a few numbers:
+length(unique(network.pos.all.seasons$PIT))
+# 234 birds
+
+length(unique(network.pos.all.seasons$PIT[network.pos.all.seasons$species=="GRETI"]))
+# 144
+length(unique(network.pos.all.seasons$PIT[network.pos.all.seasons$species=="BLUTI"]))
+# 66
+length(unique(network.pos.all.seasons$PIT[network.pos.all.seasons$species=="MARTI"]))
+# 15
+length(unique(network.pos.all.seasons$PIT[network.pos.all.seasons$species=="NUTHA"]))
+# 9
+
 # 2) Validate species territoriality --------------------------------------
 
 
@@ -114,381 +127,248 @@ boxplot(territoriality_df$visits_per_feeder~territoriality_df$species)
 
 territoriality_df$visits_per_feeder <- as.integer(territoriality_df$visits_per_feeder)
 
-# 2.2) Run model territoriality -------------------------------------------
+# 2.2) do a PCA on number of days present and average number of visits to a feeder -------------------------------------------
 
-# 2.2.1) model territoriality  -------------------------------------------
-# we run a multivariate model to test whether the number of visits per feeder and the number of days a bird was observed in a given season is explained by species and season
+pca_res <- prcomp(
+  cbind(territoriality_df$n_unique_days/9, territoriality_df$visits_per_feeder),
+  scale. = TRUE   # scale variables to unit variance
+)
+
+summary(pca_res)
+
+# Importance of components:
+#   PC1    PC2
+# Standard deviation     1.2707 0.6207
+# Proportion of Variance 0.8074 0.1926
+# Cumulative Proportion  0.8074 1.0000
+
+# extract the first component
+pc1 <- pca_res$x[, 1]  # first principal component
+
+pca_res$rotation[, 1]  # loadings for PC1
+# [1] 0.7071068 0.7071068
+# they  both load in the same direction
+
+# Add PC1 as a new column to our data
+territoriality_df$PC1_territoriality <- pca_res$x[, 1]
 
 
-model_territoriality_num_visits <- brm(
-  bf(visits_per_feeder ~ season*species + (1|PIT), family = negbinomial()),
+# 2.3) Run model territoriality -------------------------------------------
+
+# we run a model with the territoriality pca as the outcome variable to validate species-level and seasonal patterns of territoriality.
+
+model_territoriality_pca <- brm(
+  PC1_territoriality ~ season * species + (1 | PIT),
+  family = gaussian,
   data = territoriality_df,
   cores = 4,
   chains = 4,
   iter = 4000
 )
 
-#save(model_territoriality_num_visits, file="model output/model_territoriality_num_visits.RDA")
-load("model output/model_territoriality_num_visits.RDA")
-summary(model_territoriality_num_visits)
-
-model_territoriality_days_present <- brm(
-    bf(n_unique_days | trials(9) ~ season*species + (1|PIT), family = binomial()),
-  data = territoriality_df,
-  cores = 4,
-  chains = 4,
-  iter = 4000
-)
-
-#save(model_territoriality, file="model output/model_territoriality_days_present.RDA")
-load("model output/model_territoriality_days_present.RDA")
-
-# SW: I had to make two separate models, because emmeans does currently not work for multivariate models. You'll have to extract things separately for each model
-
-summary(model_territoriality_days_present)
-summary(model_territoriality_num_visits)
-
-# 2.2.2) model model_territoriality_days_present -------------------------------------------
-###Extract the summary output into a table
-sum_days <- summary(model_territoriality_days_present)
-days_fixed_df <- as.data.frame(sum_days$fixed)
-days_fixed_df <- tibble::rownames_to_column(days_fixed_df, var = "Term")
-days_fixed_df$Term <- c("Intercept", "Spring","Summer", "Winter",
-                        "Great tit", "Marsh tit", "Nuthatch",
-                        "Great tit x Spring", "Great tit x Summer", "Great tit x Winter",
-                        "Marsh tit x Spring", "Marsh tit x Summer", "Marsh tit x Winter",
-                        "Nuthatch x Spring","Nuthatch x Summer","Nuthatch x Winter" )
-days_fixed_df <- days_fixed_df[, 1:(ncol(days_fixed_df) - 2)]
-colnames(days_fixed_df)
+#save(model_territoriality_pca, file="model output/model_territoriality_pca.RDA")
+load("model output/model_territoriality_pca.RDA")
 
 
-days_fixed_df <- days_fixed_df %>%
-  select("Term", "Estimate", "Est.Error", "l-95% CI", "u-95% CI", "Rhat") %>%
+# 2.4) Summary -------------------------------------------
+###Extract the summary output into a table (Table S2)
+sum_mod <- summary(model_territoriality_pca)
+
+#(fixed effects)
+terr_fixed_df <- as.data.frame(sum_mod$fixed)
+
+terr_fixed_df <- terr_fixed_df %>%
+  mutate(Term = rownames(terr_fixed_df)) %>%
+  select(Term, everything())
+
+#Better seperate the names of the Terms
+terr_fixed_df <- terr_fixed_df %>%
+  separate(Term, into = c("Response", "Term"), sep = "_", extra = "merge", fill = "right") %>%
+  mutate(
+    Response = case_when(
+      Response == "visitsperfeeder" ~ "Visits per feeder",
+      Response == "nuniquedays" ~ "Number of unique days",
+      TRUE ~ Response
+    )
+  )
+
+#change the names of the Terms
+terr_fixed_df <- terr_fixed_df %>%
+  rowwise() %>%    # Work on each row individually
+  mutate(Term = if_else(
+    Term == "Intercept", "Intercept",
+    if_else(
+      !grepl(":", Term), 
+      case_when(
+        Term == "seasonspring" ~ "Spring",
+        Term == "seasonsummer" ~ "Summer",
+        Term == "seasonwinter" ~ "Winter",
+        Term == "speciesGRETI" ~ "Great tit",
+        Term == "speciesMARTI" ~ "Marsh tit",
+        Term == "speciesNUTHA" ~ "Nuthatch",
+        TRUE ~ Term
+      ),
+      {
+        parts <- strsplit(Term, ":")[[1]]
+        recode_part <- function(x) {
+          x <- gsub("^season", "", x)
+          x <- gsub("^species", "", x)
+          switch(x,
+                 spring = "Spring",
+                 summer = "Summer",
+                 winter = "Winter",
+                 GRETI = "Great tit",
+                 MARTI = "Marsh tit",
+                 NUTHA = "Nuthatch",
+                 x
+          )
+        }
+        paste(sapply(parts, recode_part), collapse = ": ")
+      }
+    )
+  )) %>%
+  ungroup()
+
+#Select what goes into the table and make the table
+colnames(terr_fixed_df)
+terr_table <- terr_fixed_df %>%
+  select("Response", "Term", "Estimate", "Est.Error", "l-95% CI", "u-95% CI", "Rhat") %>%
   rename(
     Estimate = "Estimate",
     Est_Error = "Est.Error",
     CI_Lower = "l-95% CI",
     CI_Upper = "u-95% CI",
     Rhat = Rhat
-  )%>%
-  mutate(Odds = exp(Estimate),
-         Est_Error_Odds = exp(Est_Error),
-         Odds_Lower = exp(CI_Lower),
-         Odds_Upper = exp(CI_Upper))
+  )
 
-days_fixed_df <- days_fixed_df %>%
-  select("Term", "Est_Error_Odds", "Odds_Lower", "Odds_Upper", "Odds", "Rhat") 
 
-days_fixed_df <- days_fixed_df %>%
-  dplyr::mutate(across(where(is.numeric), ~ round(.x, 2)))
-
-days_table <- flextable(days_fixed_df) %>%
+terr_table <- flextable(terr_table) %>%
   autofit()
 
 # 6. Export to Word
 doc <- read_docx()
-doc <- body_add_flextable(doc, value = days_table)
-print(doc, target = "Plots and tables/fixed_effects_days_model.docx")
-
-# 2.2.3) model model_territoriality_num_visits -------------------------------------------
-###Extract the summary output into a table
-sum_visits <- summary(model_territoriality_num_visits)
-sum_visits_df <- as.data.frame(sum_visits$fixed)
-sum_visits_df <- tibble::rownames_to_column(sum_visits_df, var = "Term")
-sum_visits_df$Term <- c("Intercept", "Spring","Summer", "Winter",
-                        "Great tit", "Marsh tit", "Nuthatch",
-                        "Great tit x Spring", "Great tit x Summer", "Great tit x Winter",
-                        "Marsh tit x Spring", "Marsh tit x Summer", "Marsh tit x Winter",
-                        "Nuthatch x Spring","Nuthatch x Summer","Nuthatch x Winter" )
-sum_visits_df <- sum_visits_df[, 1:(ncol(sum_visits_df) - 2)]
-colnames(sum_visits_df)
+doc <- body_add_flextable(doc, value = terr_table)
+print(doc, target = "Plots and tables/model_territoriality_summary.docx")
 
 
-sum_visits_df <- sum_visits_df %>%
-  select("Term", "Estimate", "Est.Error", "l-95% CI", "u-95% CI", "Rhat") %>%
-  rename(
-    Estimate = "Estimate",
-    Est_Error = "Est.Error",
-    CI_Lower = "l-95% CI",
-    CI_Upper = "u-95% CI",
-    Rhat = Rhat
-  )%>%
-  mutate(Odds = exp(Estimate),
-         Est_Error_Odds = exp(Est_Error),
-         Odds_Lower = exp(CI_Lower),
-         Odds_Upper = exp(CI_Upper))
-
-sum_visits_df <- sum_visits_df %>%
-  select("Term", "Est_Error_Odds", "Odds_Lower", "Odds_Upper", "Odds", "Rhat") 
-
-sum_visits_df <- sum_visits_df %>%
-  dplyr::mutate(across(where(is.numeric), ~ round(.x, 2)))
-
-visits_table <- flextable(sum_visits_df) %>%
-  autofit()
-
-# 6. Export to Word
-doc <- read_docx()
-doc <- body_add_flextable(doc, value = visits_table)
-print(doc, target = "Plots and tables/fixed_effects_visits_model.docx")
 
 # 2.3) Model checks -------------------------------------------------------
-pp_check(model_territoriality_days_present, ndraws = 100)
-pp_check(model_territoriality_num_visits, ndraws = 100)
+pp_check(model_territoriality_pca, ndraws = 100)
+# the fit is okay - even though there are likely variables that explain territoriality that are not incluced in the model
 
+plot(model_territoriality_pca)
+# mixture and stationarity is good
 
-performance::r2_bayes(model_territoriality_days_present)
-#Conditional R2: 0.557 (95% CI [0.518, 0.598])
-#Marginal R2: 0.228 (95% CI [0.186, 0.271])
-performance::r2_bayes(model_territoriality_num_visits)
-#Conditional R2: 0.552 (95% CI [0.468, 0.621])
-#Marginal R2: 0.336 (95% CI [0.196, 0.481])
+R2 <- performance::r2_bayes(model_territoriality_pca)
+R2
+# Conditional R2: 0.448 (95% CI [0.367, 0.521])
+# Marginal R2: 0.244 (95% CI [0.183, 0.302])
+
 
 
 # 2.4) Extract effects  ---------------------------------------------------
-#a) emmeans for the number of visits per feeder
-# Compute marginal means for the species variable
-days_species_emm <- emmeans(model_territoriality_days_present, ~ species)
-# Pairwise comparisons between species levels
-days_species_contrasts <- contrast(days_species_emm, method = "pairwise")
-days_species_contrasts
-
-#  contrast      estimate lower.HPD upper.HPD
-#BLUTI - GRETI   0.0543    -0.282     0.407
-#BLUTI - MARTI  -1.3411    -2.016    -0.722
-#BLUTI - NUTHA  -1.1088    -2.014    -0.289
-#GRETI - MARTI  -1.3938    -2.034    -0.803
-#GRETI - NUTHA  -1.1570    -1.993    -0.346
-#MARTI - NUTHA   0.2267    -0.743     1.235
-# Results are averaged over the levels of: season, age_in_2020 
+#emmeans
+territoriality_emm <- emmeans(model_territoriality_pca, ~ species)
+territoriality_contrasts <- contrast(territoriality_emm, method = "pairwise")
+# contrast      estimate lower.HPD upper.HPD
+# BLUTI - GRETI   0.0352    -0.290     0.354
+# BLUTI - MARTI  -1.3224    -1.859    -0.798
+# BLUTI - NUTHA  -1.3923    -2.052    -0.703
+# GRETI - MARTI  -1.3539    -1.855    -0.880
+# GRETI - NUTHA  -1.4262    -2.042    -0.776
+# MARTI - NUTHA  -0.0735    -0.828     0.698
+# 
+# Results are averaged over the levels of: season 
 # Point estimate displayed: median 
-# Results are given on the log odds ratio (not the response) scale. 
-# HPD interval probability: 0.95
+# HPD interval probability: 0.95 
 
+#emmeans within each season (Table S3)
+terr_season_emm <- emmeans(model_territoriality_pca, ~ species | season)
 
-# Marginal means for species by season
-days_species_season_emm <- emmeans(model_territoriality_days_present, ~ species | season)
-# Pairwise comparisons within each season
-days_species_season_contrasts <- contrast(days_species_season_emm, method = "pairwise")
-days_species_season_contrasts
+terr_species_season_contrasts <- contrast(terr_season_emm, method = "pairwise")
+terr_species_season_contrasts
 
-#season = autumn:
-#contrast      estimate lower.HPD upper.HPD
-#BLUTI - GRETI   0.1480    -0.475    0.7092
-#BLUTI - MARTI  -1.5393    -2.455   -0.6074
-#BLUTI - NUTHA  -3.0708    -5.157   -1.3265
-#GRETI - MARTI  -1.6874    -2.474   -0.8739
-#GRETI - NUTHA  -3.2247    -5.200   -1.5133
-#MARTI - NUTHA  -1.5474    -3.602    0.3536
+# season = autumn:
+#   contrast      estimate lower.HPD upper.HPD
+# BLUTI - GRETI   0.2669    -0.386    0.9173
+# BLUTI - MARTI  -1.3350    -2.241   -0.3875
+# BLUTI - NUTHA  -2.4193    -3.761   -1.0313
+# GRETI - MARTI  -1.5990    -2.351   -0.7600
+# GRETI - NUTHA  -2.6797    -3.957   -1.4300
+# MARTI - NUTHA  -1.0802    -2.490    0.3524
+# 
+# season = spring:
+#   contrast      estimate lower.HPD upper.HPD
+# BLUTI - GRETI   0.3094    -0.159    0.7132
+# BLUTI - MARTI  -0.5115    -1.314    0.2363
+# BLUTI - NUTHA  -0.1939    -1.250    0.8260
+# GRETI - MARTI  -0.8252    -1.556   -0.0541
+# GRETI - NUTHA  -0.4926    -1.524    0.5553
+# MARTI - NUTHA   0.3243    -0.935    1.4838
+# 
+# season = summer:
+#   contrast      estimate lower.HPD upper.HPD
+# BLUTI - GRETI  -0.5353    -1.172    0.1063
+# BLUTI - MARTI  -1.3397    -2.373   -0.3488
+# BLUTI - NUTHA  -1.3553    -2.467   -0.2883
+# GRETI - MARTI  -0.8033    -1.680    0.0257
+# GRETI - NUTHA  -0.8265    -1.788    0.1014
+# MARTI - NUTHA  -0.0209    -1.187    1.2351
+# 
+# season = winter:
+#   contrast      estimate lower.HPD upper.HPD
+# BLUTI - GRETI   0.1058    -0.273    0.5067
+# BLUTI - MARTI  -2.0852    -2.768   -1.3526
+# BLUTI - NUTHA  -1.6047    -2.566   -0.6212
+# GRETI - MARTI  -2.1921    -2.889   -1.5592
+# GRETI - NUTHA  -1.7080    -2.615   -0.7326
+# MARTI - NUTHA   0.4941    -0.666    1.5655
+# 
+# Point estimate displayed: median 
+# HPD interval probability: 0.95 
 
-#season = spring:
-#  contrast      estimate lower.HPD upper.HPD
-#BLUTI - GRETI   0.2438    -0.196    0.6671
-#BLUTI - MARTI  -1.2184    -2.185   -0.3247
-#BLUTI - NUTHA  -0.1974    -1.191    0.8767
-#GRETI - MARTI  -1.4576    -2.365   -0.5729
-#GRETI - NUTHA  -0.4374    -1.442    0.5904
-#MARTI - NUTHA   1.0274    -0.268    2.3120
+plot(territoriality_emm)
+plot(terr_season_emm)
 
-#season = summer:
-#  contrast      estimate lower.HPD upper.HPD
-#BLUTI - GRETI  -0.3769    -0.952    0.2037
-#BLUTI - MARTI  -1.1689    -2.075   -0.1454
-#BLUTI - NUTHA  -0.4011    -1.426    0.6193
-#GRETI - MARTI  -0.7912    -1.623    0.0649
-#GRETI - NUTHA  -0.0276    -0.941    0.8829
-#MARTI - NUTHA   0.7649    -0.382    2.0038
-
-#season = winter:
-#  contrast      estimate lower.HPD upper.HPD
-#BLUTI - GRETI   0.2079    -0.175    0.6008
-#BLUTI - MARTI  -1.4326    -2.262   -0.6447
-#BLUTI - NUTHA  -0.7138    -1.747    0.2414
-#GRETI - MARTI  -1.6423    -2.438   -0.8920
-#GRETI - NUTHA  -0.9268    -1.924    0.0181
-#MARTI - NUTHA   0.7224    -0.451    1.9284
-
-
-#Results are averaged over the levels of: age_in_2020 
-#Point estimate displayed: median 
-#Results are given on the log (not the response) scale. 
-#HPD interval probability: 0.95 
-
-
-# How to interpret:
-# estimate: difference in marginal means
-# if the credible interval does not include 0, two groups are considered significantly different
-# Plot the marginal means for species
-plot(days_species_emm)
-# Plot pairwise comparisons for species across seasons
-plot(days_species_season_emm)
-# Extract contrasts as a data frame
-days_species_season_contrasts_df <- as.data.frame(days_species_season_contrasts)
-head(days_species_season_contrasts_df)
-# you get from log odds to odds by expontiating:
-exp(days_species_season_contrasts_df$estimate) 
-# an odds ratio of 1.67 means that e.g. BLUTI are 1.67 times more likely to be the leader compared to GRETI
-# If one were interested in probabilities for a certain species to be a leader, you calculate as: probability = exp(log odds) / (1 + exp(log odds)) = exp(estimate)/(1+ exp(estimate))
-days_species_season_contrasts_df <- days_species_season_contrasts_df %>%
-  mutate(
-    odds = exp(estimate),
-    odds_lower = exp(lower.HPD),
-    odds_upper = exp(upper.HPD)
-  )
-days_emm_table <- days_species_season_contrasts_df %>%
-  dplyr::select(contrast, season, odds_lower, odds_upper, odds) 
-
-#extract the dataframe into a table for Word
+#extracting the results to make a table
+terr_species_season_contrasts_df <- as.data.frame(terr_species_season_contrasts)
+head(terr_species_season_contrasts_df)
+terr_species_season_contrasts_df$odds <- exp(terr_species_season_contrasts_df$estimate)#gives the odds instead of log odds
+terr_emm_table <- terr_species_season_contrasts_df %>%
+  dplyr::select(contrast, season, estimate, lower.HPD, upper.HPD, odds)
 species_names <- c(
   "BLUTI" = "Blue tit",
   "GRETI" = "Great tit",
   "MARTI" = "Marsh tit",
-  "NUTHA" = "Nuthatch"
-)
-library(stringr)
-days_emm_table <- days_emm_table %>%
+  "NUTHA" = "Nuthatch")
+
+
+terr_emm_table <- terr_emm_table %>%
   mutate(contrast = str_replace_all(contrast, species_names))
-colnames(days_emm_table) <- c("Contrast", "Season", "odds_lower", "odds_upper", "Odds")
-days_emm_table <- days_emm_table %>%
+colnames(terr_emm_table) <- c("Contrast", "Season", "Estimate", "Lower_HPD", "Upper_HPD", "Odds")
+
+terr_emm_table <- terr_emm_table %>%
   dplyr::mutate(across(where(is.numeric), ~ round(.x, 2)))
 
-days_pairwise_table <- flextable(days_emm_table) %>%
+terr_pairwise_table <- flextable(terr_emm_table) %>%
   autofit() %>%
-  set_caption("Pairwise Contrasts of Species by Season")
-
-# Export to Word (optional)
-library(officer)
-doc_pariwise_comparisons_days <- read_docx() %>%
-  body_add_flextable(days_pairwise_table)
-
-print(doc_pariwise_comparisons_days, target = "Plots and tables/pairwise_contrasts_days_model.docx")
-
-#b) emmeans for the number of visits at any feeder
-# Compute marginal means for the species variable
-visits_species_emm <- emmeans(model_territoriality_num_visits, ~ species)
-# Pairwise comparisons between species levels
-visits_species_contrasts <- contrast(visits_species_emm, method = "pairwise")
-visits_species_contrasts
-
-#  contrast      estimate lower.HPD upper.HPD
-#BLUTI - GRETI   0.0157    -0.229     0.292
-#BLUTI - MARTI  -1.0122    -1.456    -0.586
-#BLUTI - NUTHA  -1.2411    -1.789    -0.705
-#GRETI - MARTI  -1.0335    -1.413    -0.629
-#GRETI - NUTHA  -1.2604    -1.783    -0.760
-#MARTI - NUTHA  -0.2241    -0.849     0.385
-# Results are averaged over the levels of: season, age_in_2020 
-# Point estimate displayed: median 
-# Results are given on the log odds ratio (not the response) scale. 
-# HPD interval probability: 0.95
+  set_caption("Territoriality Pairwise Contrasts of Species by Season")
 
 
-# Marginal means for species by season
-visits_species_season_emm <- emmeans(model_territoriality_num_visits, ~ species | season)
-# Pairwise comparisons within each season
-visits_species_season_contrasts <- contrast(visits_species_season_emm, method = "pairwise")
-visits_species_season_contrasts
+doc_pariwise_comparisons_terr <- read_docx() %>%
+  body_add_flextable(terr_pairwise_table)
 
-#season = autumn:
-#contrast      estimate lower.HPD upper.HPD
-#BLUTI - GRETI   0.5449    0.0408    1.0751
-#BLUTI - MARTI  -1.0339   -1.7801   -0.3312
-#BLUTI - NUTHA  -1.5539   -2.5907   -0.4771
-#GRETI - MARTI  -1.5824   -2.2304   -0.9636
-#GRETI - NUTHA  -2.0891   -3.0948   -1.1077
-#MARTI - NUTHA  -0.5118   -1.7054    0.5376
-
-#season = spring:
-##  contrast      estimate lower.HPD upper.HPD
-#BLUTI - GRETI   0.4495    0.1056    0.7821
-#BLUTI - MARTI  -0.0963   -0.7095    0.5039
-#BLUTI - NUTHA  -0.1880   -1.0790    0.5840
-#GRETI - MARTI  -0.5448   -1.1425    0.0365
-#GRETI - NUTHA  -0.6356   -1.4687    0.1531
-#MARTI - NUTHA  -0.0984   -1.0148    0.8886
-
-#season = summer:
-#  contrast      estimate lower.HPD upper.HPD
-#BLUTI - GRETI  -0.9323   -1.4566   -0.3642
-#BLUTI - MARTI  -1.6133   -2.4592   -0.8203
-#BLUTI - NUTHA  -1.9133   -2.8215   -1.0451
-#GRETI - MARTI  -0.6757   -1.3590   -0.0189
-#GRETI - NUTHA  -0.9816   -1.7395   -0.2146
-#MARTI - NUTHA  -0.2970   -1.3158    0.6404
-
-#season = winter:
-##  contrast      estimate lower.HPD upper.HPD
-#BLUTI - GRETI   0.0074   -0.2984    0.3124
-#BLUTI - MARTI  -1.2899   -1.8310   -0.7507
-##BLUTI - NUTHA  -1.2795   -2.0582   -0.5632
-#GRETI - MARTI  -1.2985   -1.8133   -0.8046
-#GRETI - NUTHA  -1.2837   -2.0297   -0.5685
-#MARTI - NUTHA   0.0154   -0.8797    0.8159
-
-#Results are averaged over the levels of: age_in_2020 
-#Point estimate displayed: median 
-#Results are given on the log (not the response) scale. 
-#HPD interval probability: 0.95 
-
-
-# How to interpret:
-# estimate: difference in marginal means
-# if the credible interval does not include 0, two groups are considered significantly different
-# Plot the marginal means for species
-plot(visits_species_emm)
-# Plot pairwise comparisons for species across seasons
-plot(visits_species_season_emm)
-# Extract contrasts as a data frame
-visits_species_season_contrasts_df <- as.data.frame(visits_species_season_contrasts)
-head(visits_species_season_contrasts_df)
-# you get from log odds to odds by expontiating:
-exp(visits_species_season_contrasts_df$estimate) 
-# an odds ratio of 1.67 means that e.g. BLUTI are 1.67 times more likely to be the leader compared to GRETI
-# If one were interested in probabilities for a certain species to be a leader, you calculate as: probability = exp(log odds) / (1 + exp(log odds)) = exp(estimate)/(1+ exp(estimate))
-visits_species_season_contrasts_df <- visits_species_season_contrasts_df %>%
-  mutate(
-    odds = exp(estimate),
-    odds_lower = exp(lower.HPD),
-    odds_upper = exp(upper.HPD)
-  )
-visits_emm_table <- visits_species_season_contrasts_df %>%
-  dplyr::select(contrast, season, odds_lower, odds_upper, odds) 
-
-#extract the dataframe into a table for Word
-species_names <- c(
-  "BLUTI" = "Blue tit",
-  "GRETI" = "Great tit",
-  "MARTI" = "Marsh tit",
-  "NUTHA" = "Nuthatch"
-)
-library(stringr)
-visits_emm_table <- visits_emm_table %>%
-  mutate(contrast = str_replace_all(contrast, species_names))
-colnames(visits_emm_table) <- c("Contrast", "Season", "odds_lower", "odds_upper", "Odds")
-visits_emm_table <- visits_emm_table %>%
-  dplyr::mutate(across(where(is.numeric), ~ round(.x, 2)))
-
-visits_pairwise_table <- flextable(visits_emm_table) %>%
-  autofit() %>%
-  set_caption("Pairwise Contrasts of Species by Season")
-
-# Export to Word (optional)
-library(officer)
-doc_pariwise_comparisons_visits <- read_docx() %>%
-  body_add_flextable(visits_pairwise_table)
-
-print(doc_pariwise_comparisons_visits, target = "Plots and tables/pairwise_contrasts_visits_model.docx")
-
+print(doc_pariwise_comparisons_terr, target = "Plots and tables/pairwise_contrasts_territoriality.docx")
 
 
 # 2.5) Plot ---------------------------------------------------------------
 
-plot(conditional_effects(model_territoriality))
+plot(conditional_effects(model_territoriality_pca))
 
 #extract predicted means and CI from the brm model
 # First response variable
 pred_visits <- fitted(
-  model_territoriality,
+  model_territoriality_pca,
   resp = "visitsperfeeder",
   newdata = expand.grid(
     season = unique(territoriality_df$season),
@@ -665,6 +545,9 @@ names(leadership_data)
 # betweenness_log: the log of the value of betweenness centrality for each individual
 # n_unique_days: the number of unique days a bird was registered per season
 
+
+
+
 # 3) Follower-leader dynamics ---------------------------------------------
 
 
@@ -674,6 +557,8 @@ names(leadership_data)
 model_order_vif <- lm(n_leader ~  species + season + age_in_2020 + scale(degree_log) + scale(betweenness_log), data= leadership_data)
 
 vif(model_order_vif)
+
+# Table S1:
 
 # GVIF Df GVIF^(1/(2*Df))
 # species                1.228948  3        1.034957
@@ -685,26 +570,6 @@ vif(model_order_vif)
 
 # all vifs <5, so we can include all of them
 
-#extract the VIF into a table (Word doc)
-vif_lead_df <- as.data.frame(vif(model_order_vif))
-
-vif_lead_df <- vif_lead_df %>%
-  mutate(Variable = rownames(vif_lead_df)) %>%
-  select(Variable, everything())
-
-colnames(vif_lead_df) <- c("Variable", "GVIF", "Df", "GVIF^(1/(2*Df))")
-
-vif_lead_df <- vif_lead_df %>%
-  mutate(across(where(is.numeric), ~ round(., 2)))
-
-vif_lead_df <- flextable(vif_lead_df) %>%
-  autofit()
-
-# Export to Word
-doc <- read_docx()
-doc <- body_add_flextable(doc, value = vif_lead_df)
-print(doc, target = "Plots and tables/VIF_lead_Table.docx")
-
 
 # 3.2) run the model -------------------------------------------------------
 
@@ -712,9 +577,8 @@ print(doc, target = "Plots and tables/VIF_lead_Table.docx")
 # we include individual level predictors, as well as the expected number of times the bird is expected to be a leader by chance based on the flock sizes
 # e.g. if a bird was in three flocks of 2,3 and 4 birds, the expected chance of being a leader across the three flocks is 1/2 + 1/3 + 1/4 = 1.08333
 
-detach("package:rethinking", unload=TRUE)
 leadership_model <- brm(
-  formula = n_leader ~ season*species + scale(degree_log)*season + scale(betweenness_log)*season + season*age_in_2020 +
+  formula = n_leader ~ season*species + season*scale(degree_log) + season*scale(betweenness_log) + season*age_in_2020 +
     offset(log(expected_leaders)) +
     (1 | PIT),
   data = leadership_data,
@@ -724,7 +588,7 @@ leadership_model <- brm(
 )
 
 summary(leadership_model)
-save(leadership_model, file="model output/leadership_model.RDA")
+#save(leadership_model, file="model output/leadership_model.RDA")
 load("model output/leadership_model.RDA")
 
 
@@ -740,56 +604,42 @@ plot(leadership_model)
 
 # have a first look at the plot (conditional effects)
 leadership_model_conditional_effects <- plot(conditional_effects(leadership_model, re_formula = NA))
-
-# a 0 here means to a follower (baseline)
 # formula = NA excludes random effects
 
 # extract an R2 for our model
 R2 <- performance::r2_bayes(leadership_model)
 # # Bayesian R2 with Compatibility Interval
 # 
-# Conditional R2: 0.948 (95% CI [0.935, 0.958])
-# Marginal R2: 0.858 (95% CI [0.818, 0.887])
+# Conditional R2: 0.947 (95% CI [0.932, 0.959])
+# Marginal R2: 0.909 (95% CI [0.877, 0.931])
 
 # 3.4) Summary table ------------------------------------------------------
 
 
-##make a table with the summary
+##make a table with the summary (Table S4)
 summary_leadership_model <- summary(leadership_model)
 fixed_effects <- as.data.frame(summary_leadership_model$fixed)
 fixed_effects <- tibble::rownames_to_column(fixed_effects, var = "Term")
-fixed_effects$Term <- c("Intercept", "Spring","Summer", "Winter",
-                   "Great tit", "Marsh tit", "Nuthatch",
-                   "Degree", "Betweenness", "Age (Juvenile)",
-                   "Great tit x Spring", "Great tit x Summer", "Great tit x Winter",
-                   "Marsh tit x Spring", "Marsh tit x Summer", "Marsh tit x Winter",
-                   "Nuthatch x Spring","Nuthatch x Summer","Nuthatch x Winter",
-                   "Spring × Degree", "Summer × Degree", "Winter × Degree",
-                   "Spring × Betweenness", "Summer × Betweenness", "Winter × Betweenness",
+fixed_effects$Term <- c("Intercept", "Great tit", "Marsh tit", "Nuthatch",
+                   "Spring","Summer", "Winter",
+                   "Age (Juvenile)", "Betweenness", "Degree",
+                   "Great tit x Spring", "Marsh tit x Spring", "Nuthatch x Spring", 
+                   "Great tit x Summer", "Marsh tit x Summer", "Nuthatch x Summer", 
+                   "Great tit x Winter", "Marsh tit x Winter", "Nuthatch x Winter", 
                    "Spring x Age(Juvenile)", "Summer x Age(Juvenile)", "Winter x Age(Juvenile)" )
 fixed_effects <- fixed_effects[, 1:(ncol(fixed_effects) - 2)]
 colnames(fixed_effects)
 
-
 fixed_effects <- fixed_effects %>%
-  select("Term", "Estimate", "Est.Error", "l-95% CI", "u-95% CI", "Rhat") %>%
-  rename(
-    Estimate = "Estimate",
-    Est_Error = "Est.Error",
-    CI_Lower = "l-95% CI",
-    CI_Upper = "u-95% CI",
-    Rhat = Rhat
-  )%>%
-  mutate(Odds = exp(Estimate),
-         Est_Error_Odds = exp(Est_Error),
-         Odds_Lower = exp(CI_Lower),
-         Odds_Upper = exp(CI_Upper))
-
-fixed_effects <- fixed_effects %>%
-  select("Term", "Est_Error_Odds", "Odds_Lower", "Odds_Upper", "Odds", "Rhat") 
-  
-fixed_effects <- fixed_effects %>%
-  dplyr::mutate(across(where(is.numeric), ~ round(.x, 2)))
+  mutate(
+    Odds = exp(Estimate),       # convert log-odds to odds ratios first
+    Odds = round(Odds, 2),  # round Estimate
+    # Round other numeric columns except Estimate
+    across(
+      .cols = where(is.numeric) & !all_of("Odds"), 
+      ~ round(.x, 2)
+    )
+  )
 
 library(flextable)
 
@@ -817,10 +667,10 @@ levels(network.pos.all.seasons$species)
 network.pos.all.seasons$age_in_2020 <- as.factor(network.pos.all.seasons$age_in_2020)
 levels(network.pos.all.seasons$age_in_2020)
 
-my_colors <- c("Spring" = "#56ae6c", 
-               "Summer" = "#8960b3", 
-               "Winter" = "#b0923b", 
-               "Autumn" = "#ba495b")
+my_colors <- c("spring" = "#56ae6c", 
+               "summer" = "#8960b3", 
+               "winter" = "#b0923b", 
+               "autumn" = "#ba495b")
 my_colors_sp <- c("BLUTI" = "#b94b75", 
                   "GRETI" = "#72ac5c", 
                   "MARTI" = "#7f64b9", 
@@ -829,13 +679,12 @@ my_colors_sp <- c("BLUTI" = "#b94b75",
 my_colors_age <- c("adult" = "#9a5ea1", 
                    "juvenile" = "#98823c")
 
-names(leadership_model_conditional_effects)
 
 ggarrange(
   
   #First plot: interaction between species and season
   {
-    p <- leadership_model_conditional_effects$`season:species`
+    p <- leadership_model_conditional_effects$`species:season`
     for (i in seq_along(p$layers)) {
       if (inherits(p$layers[[i]]$geom, "GeomPoint")) {
         p$layers[[i]]$aes_params$size <- 2.5  # smaller points
@@ -862,8 +711,8 @@ ggarrange(
         limits = c("summer", "autumn", "winter", "spring"),
         labels = c("summer" = "Summer", "autumn" = "Autumn", "winter" = "Winter", "spring" = "Spring")
       ) +
-      labs(x = "Season", y = "Leadership probability")  +
-      coord_cartesian(ylim = c(4.5, 25))+
+      labs(x = "Season", y = "Leadership probability") +
+      ylim(c(0.0, 0.9)) +
       theme(
         legend.position = "bottom",
         legend.title = element_text(),
@@ -871,30 +720,66 @@ ggarrange(
       )
   },
   
-  
-   #Second plot: degree centrality:season
+  # Second plot: interaction between season and age
   {
-    ce_degree <- leadership_model_conditional_effects$`degree_log:season`$data
-    ce_degree$season <- factor(ce_degree$season, 
-                               levels = c("summer", "autumn", "winter", "spring"),  
-                               labels = c("Summer", "Autumn", "Winter", "Spring"))
-    
-    ggplot(ce_degree, aes(x = scale(degree_log), y = estimate__, color = season, fill = season)) +
-      geom_ribbon(aes(ymin = lower__, ymax = upper__), alpha = 0.2, color = NA) +
-      geom_line(size = 1) +
-      scale_color_manual(values = my_colors) +
-      scale_fill_manual(values = my_colors) +
-      labs(x = "Degree centrality", y = "") +
-      coord_cartesian(ylim = c(4.5, 25)) +
-      theme_bw() +
+    p <- leadership_model_conditional_effects$`season:age_in_2020`
+    for (i in seq_along(p$layers)) {
+      if (inherits(p$layers[[i]]$geom, "GeomPoint")) {
+        p$layers[[i]]$aes_params$size <- 2.5
+      }
+    }
+    p +
+      labs(y = "Leadership probability") +
+      ylim(c(0.0, 0.9)) +
       theme(
+        legend.background = element_blank(),
         legend.position = "bottom",
-        legend.title = element_blank()
+        legend.title = element_blank(),
+        axis.title.x = element_blank()
+      ) +
+      scale_fill_manual(
+        values = my_colors_age,
+        breaks = c("adult", "juvenile"),
+        labels = c("Adults", "Juveniles")
+      ) +
+      scale_color_manual(
+        values = my_colors_age,
+        breaks = c("adult", "juvenile"),
+        labels = c("Adults", "Juveniles")
+      ) +
+      scale_x_discrete(
+        limits = c("summer", "autumn", "winter", "spring"),
+        labels = c("summer" = "Summer", "autumn" = "Autumn", "winter" = "Winter", "spring" = "Spring")
       )
   },
+  #Third plot : betweenness centrality
+  {
+    ce <- conditional_effects(leadership_model, effects = "betweenness")$betweenness
+    
+    ggplot(ce, aes(x = betweenness, y = estimate__)) +
+      geom_ribbon(aes(ymin = lower__, ymax = upper__), fill = "grey80") +
+      geom_line(color = "black", size= 0.5) +
+      labs(x = "Betweenness centrality", y = "") +
+      ylim(0.0, 0.9) +
+      theme_bw()
+  },
   
-  labels = c("a", "b"),
-  ncol = 2, nrow = 1,
+ 
+  
+  #Fourth plot: degree centrality
+  {
+    ce_degree <- leadership_model_conditional_effects$degree$data
+    
+      ggplot(ce_degree, aes(x = degree, y = estimate__)) +
+      geom_ribbon(aes(ymin = lower__, ymax = upper__), fill = "grey80", alpha = 0.5) +  # CI ribbon in grey
+      geom_line(color = "black", size = 0.5) +                                          # main curve in black
+      labs(x = "Degree centrality", y = "") +
+      ylim(0, 0.9) +
+      theme_bw()
+  },
+  
+  labels = c("a", "b", "c", "d"),
+  ncol = 2, nrow = 2,
   common.legend = FALSE
 )
 
@@ -913,35 +798,29 @@ ggsave(file="Plots and tables/plot_leadership_model.tiff", width=8.5, height=6.5
 # the estimates are expressed in their logit scale so here transform them into odds ratio's
 exp(fixef(leadership_model))
 
-#                                    Estimate Est.Error      Q2.5     Q97.5
-##Intercept                         3.3053261  1.135883 2.5562041 4.2175585
-#seasonspring                      0.9091121  1.146286 0.6961262 1.1950550
-#seasonsummer                      0.7202703  1.274143 0.4488387 1.1476357
-#seasonwinter                      0.4767395  1.153628 0.3613298 0.6322333
-#speciesGRETI                      0.7916532  1.166918 0.5837240 1.0750536
-#speciesMARTI                      1.1070372  1.156872 0.8322133 1.4817604
-#speciesNUTHA                      1.1115076  1.187683 0.7963964 1.5601706
-##scaledegree_log                   1.0242657  1.072885 0.8925439 1.1811882
-#scalebetweenness_log              0.9973700  1.047823 0.9101231 1.0955589
-#age_in_2020juvenile               1.1412961  1.137924 0.8874184 1.4716207
-#seasonspring:speciesGRETI         1.1565898  1.182819 0.8356651 1.6088075
-#seasonsummer:speciesGRETI         1.6358592  1.303827 0.9784839 2.7512480
-#seasonwinter:speciesGRETI         1.3926503  1.179322 1.0061364 1.9309790
-#seasonspring:speciesMARTI         0.8970535  1.180603 0.6480150 1.2355219
-#seasonsummer:speciesMARTI         1.3819361  1.284749 0.8492360 2.2684873
-#seasonwinter:speciesMARTI         1.3716449  1.168108 1.0120368 1.8594987
-#seasonspring:speciesNUTHA         0.9130505  1.237113 0.5993952 1.3910933
-#seasonsummer:speciesNUTHA         1.4568884  1.297078 0.8824247 2.4506007
-#seasonwinter:speciesNUTHA         1.2447061  1.202419 0.8715141 1.7834143
-#seasonspring:scaledegree_log      0.8351132  1.081219 0.7142656 0.9742751
-#seasonsummer:scaledegree_log      0.9433804  1.100244 0.7845292 1.1342963
-#seasonwinter:scaledegree_log      0.8342330  1.082512 0.7132584 0.9727839
-#seasonspring:scalebetweenness_log 1.0562147  1.066578 0.9289719 1.1966151
-#seasonsummer:scalebetweenness_log 0.9502962  1.075599 0.8263775 1.0993690
-#seasonwinter:scalebetweenness_log 1.0686729  1.063275 0.9495384 1.2043441
-#seasonspring:age_in_2020juvenile  0.9097835  1.154281 0.6869015 1.2098501
-#seasonsummer:age_in_2020juvenile  0.9439511  1.171106 0.6934001 1.2856321
-#seasonwinter:age_in_2020juvenile  0.9384690  1.145778 0.7148197 1.2243158
+# Estimate Est.Error       Q2.5       Q97.5
+# Intercept                        0.21954653  1.296610 0.13148467  0.36442835
+# speciesGRETI                     0.25333936  1.342641 0.14214456  0.45192419
+# speciesMARTI                     0.21238314  1.524381 0.09410808  0.49328314
+# speciesNUTHA                     1.44262604  1.639034 0.55541081  3.90218636
+# seasonspring                     0.34856939  1.219697 0.23449389  0.51374076
+# seasonsummer                     0.86218210  1.363427 0.46256429  1.58637189
+# seasonwinter                     1.15124528  1.235557 0.75726198  1.71986970
+# age_in_2020juvenile              1.77587714  1.287824 1.07954133  2.92453095
+# scalebetweenness                 1.40192349  1.058989 1.25358433  1.57062800
+# scaledegree                      0.71499829  1.068001 0.62850028  0.81316422
+# speciesGRETI:seasonspring        2.94239085  1.289040 1.78123748  4.80538230
+# speciesMARTI:seasonspring        7.71348460  1.323201 4.39813226 13.27928055
+# speciesNUTHA:seasonspring        1.11034565  1.409924 0.56118100  2.14903043
+# speciesGRETI:seasonsummer        0.02955643  1.446962 0.01438641  0.06194623
+# speciesMARTI:seasonsummer        7.27718471  1.444899 3.55675991 15.08416144
+# speciesNUTHA:seasonsummer        0.53579837  1.470618 0.25291195  1.15419533
+# speciesGRETI:seasonwinter        0.93588364  1.262840 0.59323247  1.48120936
+# speciesMARTI:seasonwinter        2.66748642  1.264051 1.67629173  4.18104360
+# speciesNUTHA:seasonwinter        1.21428541  1.295821 0.72590606  2.00411703
+# seasonspring:age_in_2020juvenile 1.16854871  1.253146 0.75449731  1.83194899
+# seasonsummer:age_in_2020juvenile 0.23856669  1.287525 0.14541129  0.39603645
+# seasonwinter:age_in_2020juvenile 0.78809046  1.222375 0.53034699  1.16118090
 
 
 # in our model, blue tits are the baseline species to which all others are compared. We would like to compute comparisons between all species. 
@@ -953,66 +832,66 @@ species_emm <- emmeans(leadership_model, ~ species)
 species_contrasts <- contrast(species_emm, method = "pairwise")
 species_contrasts
 
-#  contrast      estimate lower.HPD upper.HPD
-#BLUTI - GRETI  0.02642    -0.188   0.23444
-#BLUTI - MARTI -0.21430    -0.421   0.00591
-#BLUTI - NUTHA -0.21983    -0.458   0.03469
-#GRETI - MARTI -0.23994    -0.405  -0.06383
-#GRETI - NUTHA -0.24428    -0.450  -0.04947
-#MARTI - NUTHA -0.00646    -0.203   0.19749
+# contrast      estimate lower.HPD upper.HPD
+# BLUTI - GRETI  0.02175    -0.183   0.23799
+# BLUTI - MARTI -0.21546    -0.428   0.00582
+# BLUTI - NUTHA -0.22012    -0.467   0.01835
+# GRETI - MARTI -0.24016    -0.408  -0.06538
+# GRETI - NUTHA -0.24009    -0.441  -0.04379
+# MARTI - NUTHA -0.00235    -0.208   0.19665
+# 
 # Results are averaged over the levels of: season, age_in_2020 
 # Point estimate displayed: median 
-# Results are given on the log odds ratio (not the response) scale. 
+# Results are given on the log (not the response) scale. 
 # HPD interval probability: 0.95
 
 
-# Marginal means for species by season
+# Marginal means for species by season (Table 1)
 species_season_emm <- emmeans(leadership_model, ~ species | season)
 # Pairwise comparisons within each season
 species_season_contrasts <- contrast(species_season_emm, method = "pairwise")
 species_season_contrasts
 
-#season = autumn:
-#contrast      estimate lower.HPD upper.HPD
-#BLUTI - GRETI -0.01390    -0.502    0.5003
-#BLUTI - MARTI -0.27714    -0.748    0.2025
-#BLUTI - NUTHA -0.32698    -0.872    0.1592
-#GRETI - MARTI -0.26302    -0.674    0.1478
-#GRETI - NUTHA -0.31631    -0.760    0.1001
-#MARTI - NUTHA -0.05427    -0.369    0.2734
-
-#season = spring:
-#  contrast      estimate lower.HPD upper.HPD
-#BLUTI - GRETI  0.14348    -0.112    0.4113
-#BLUTI - MARTI  0.00836    -0.273    0.2842
-#BLUTI - NUTHA  0.08230    -0.302    0.4663
-#GRETI - MARTI -0.13709    -0.440    0.1430
-#GRETI - NUTHA -0.06894    -0.424    0.3144
-#MARTI - NUTHA  0.06739    -0.331    0.4785
-
-#season = summer:
-##  contrast      estimate lower.HPD upper.HPD
-#BLUTI - GRETI -0.02733    -0.605    0.5320
-#BLUTI - MARTI -0.25879    -0.813    0.2834
-#BLUTI - NUTHA -0.33055    -0.883    0.2469
-#GRETI - MARTI -0.22844    -0.541    0.1038
-#GRETI - NUTHA -0.30014    -0.658    0.0598
-#MARTI - NUTHA -0.06949    -0.415    0.2490
-
-#season = winter:
-##  contrast      estimate lower.HPD upper.HPD
-#BLUTI - GRETI  0.00358    -0.155    0.1613
-#BLUTI - MARTI -0.32149    -0.510   -0.1296
-#BLUTI - NUTHA -0.29492    -0.536   -0.0628
-#GRETI - MARTI -0.32537    -0.486   -0.1648
-#GRETI - NUTHA -0.29824    -0.507   -0.0712
-#MARTI - NUTHA  0.02766    -0.195    0.2515
-
-
-#Results are averaged over the levels of: age_in_2020 
-#Point estimate displayed: median 
-#Results are given on the log (not the response) scale. 
-#HPD interval probability: 0.95 
+# season = autumn:
+#   contrast      estimate lower.HPD upper.HPD
+# BLUTI - GRETI -0.03568    -0.564    0.4413
+# BLUTI - MARTI -0.26155    -0.728    0.1964
+# BLUTI - NUTHA -0.29950    -0.795    0.1917
+# GRETI - MARTI -0.23329    -0.598    0.1002
+# GRETI - NUTHA -0.26999    -0.611    0.1030
+# MARTI - NUTHA -0.03580    -0.354    0.2820
+# 
+# season = spring:
+#   contrast      estimate lower.HPD upper.HPD
+# BLUTI - GRETI  0.12802    -0.142    0.3849
+# BLUTI - MARTI -0.04014    -0.309    0.2240
+# BLUTI - NUTHA  0.04221    -0.317    0.4211
+# GRETI - MARTI -0.16534    -0.450    0.1059
+# GRETI - NUTHA -0.08734    -0.448    0.2581
+# MARTI - NUTHA  0.07913    -0.301    0.4756
+# 
+# season = summer:
+#   contrast      estimate lower.HPD upper.HPD
+# BLUTI - GRETI -0.02122    -0.562    0.5748
+# BLUTI - MARTI -0.23873    -0.859    0.2721
+# BLUTI - NUTHA -0.32136    -0.907    0.2457
+# GRETI - MARTI -0.22466    -0.530    0.1098
+# GRETI - NUTHA -0.30459    -0.644    0.0504
+# MARTI - NUTHA -0.08050    -0.400    0.2392
+# 
+# season = winter:
+#   contrast      estimate lower.HPD upper.HPD
+# BLUTI - GRETI  0.00481    -0.155    0.1652
+# BLUTI - MARTI -0.32082    -0.500   -0.1341
+# BLUTI - NUTHA -0.28407    -0.512   -0.0489
+# GRETI - MARTI -0.32636    -0.483   -0.1704
+# GRETI - NUTHA -0.29043    -0.501   -0.0818
+# MARTI - NUTHA  0.03690    -0.182    0.2560
+# 
+# Results are averaged over the levels of: age_in_2020 
+# Point estimate displayed: median 
+# Results are given on the log (not the response) scale. 
+# HPD interval probability: 0.95
 
 
 # How to interpret:
@@ -1026,17 +905,15 @@ plot(species_season_emm)
 species_season_contrasts_df <- as.data.frame(species_season_contrasts)
 head(species_season_contrasts_df)
 # you get from log odds to odds by expontiating:
-exp(species_season_contrasts_df$estimate) 
+exp(species_season_contrasts_df$estimate) #thus odds are the estimates
 # an odds ratio of 1.67 means that e.g. BLUTI are 1.67 times more likely to be the leader compared to GRETI
 # If one were interested in probabilities for a certain species to be a leader, you calculate as: probability = exp(log odds) / (1 + exp(log odds)) = exp(estimate)/(1+ exp(estimate))
-species_season_contrasts_df <- species_season_contrasts_df %>%
-  mutate(
-    odds = exp(estimate),
-    odds_lower = exp(lower.HPD),
-    odds_upper = exp(upper.HPD)
-  )
+species_season_contrasts_df$odds <- exp(species_season_contrasts_df$estimate)
+
 emm_table <- species_season_contrasts_df %>%
-  dplyr::select(contrast, season, odds_lower, odds_upper, odds) 
+  dplyr::select(contrast, season, estimate, lower.HPD, upper.HPD, odds) #I make a table so I can make the calculations
+#the percentage
+emm_table$prob_emm <- (exp(emm_table$estimate) / (1 + exp(emm_table$estimate)))*100
 
 #extract the dataframe into a table for Word
 species_names <- c(
@@ -1048,7 +925,7 @@ species_names <- c(
 library(stringr)
 emm_table <- emm_table %>%
   mutate(contrast = str_replace_all(contrast, species_names))
-colnames(emm_table) <- c("Contrast", "Season", "odds_lower", "odds_upper", "Odds", "Odds_SE")
+colnames(emm_table) <- c("Contrast", "Season", "Estimate", "Lower_HPD", "Upper_HPD", "Odds", "Probability")
 emm_table <- emm_table %>%
   dplyr::mutate(across(where(is.numeric), ~ round(.x, 2)))
 
@@ -1065,52 +942,127 @@ print(doc_pariwise_comparisons, target = "Plots and tables/pairwise_contrasts_le
 
 # for age
 
-# Marginal means for species by season
+age_emm <- emmeans(leadership_model, ~ age_in_2020)
+# age_in_2020 emmean lower.HPD upper.HPD
+# adult         1.74      1.63      1.84
+# juvenile      1.84      1.70      1.96
+# 
+# Results are averaged over the levels of: season, species 
+# Point estimate displayed: median 
+# Results are given on the log (not the response) scale. 
+# HPD interval probability: 0.95 
+
+# Marginal means for species by season (Table S5)
 age_season_emm <- emmeans(leadership_model, ~ age_in_2020 | season)
-plot(age_season_emm)
 # Pairwise comparisons within each season
 age_season_contrasts <- contrast(age_season_emm, method = "pairwise")
-age_season_contrasts 
-#no differences in age across seasons
-#season = autumn:
-#contrast         estimate lower.HPD upper.HPD
-#adult - juvenile -0.00217    -0.326    0.3268
+age_season_contrasts
 
-#season = spring:
-# contrast         estimate lower.HPD upper.HPD
-#adult - juvenile -0.15353    -0.391    0.0901
+# season = autumn:
+#   contrast         estimate lower.HPD upper.HPD
+# adult - juvenile  0.00496    -0.329    0.3382
+# 
+# season = spring:
+#   contrast         estimate lower.HPD upper.HPD
+# adult - juvenile -0.15469    -0.387    0.0863
+# 
+# season = summer:
+#   contrast         estimate lower.HPD upper.HPD
+# adult - juvenile -0.20367    -0.521    0.1133
+# 
+# season = winter:
+#   contrast         estimate lower.HPD upper.HPD
+# adult - juvenile -0.05760    -0.188    0.0682
+# 
+# Results are averaged over the levels of: species 
+# Point estimate displayed: median 
+# Results are given on the log (not the response) scale. 
+# HPD interval probability: 0.95 
 
-#season = summer:
-# contrast         estimate lower.HPD upper.HPD
-#adult - juvenile -0.20309    -0.523    0.1187
 
-#season = winter:
-# contrast         estimate lower.HPD upper.HPD
-#adult - juvenile -0.05538    -0.191    0.0622
+# 3.7) Trends for continuous variable (Table S7)
+emtrends(leadership_model, ~ season, var = "degree_log")
 
-#Results are averaged over the levels of: species 
-#Point estimate displayed: median 
-#Results are given on the log (not the response) scale. 
-#HPD interval probability: 0.95 
+# season degree_log.trend lower.HPD upper.HPD
+# autumn           0.1083   -0.0832     0.303
+# spring          -0.0153   -0.1350     0.115
+# summer           0.0307   -0.1514     0.211
+# winter           0.0904   -0.0166     0.189
+# 
+# Results are averaged over the levels of: species, age_in_2020 
+# Point estimate displayed: median 
+# HPD interval probability: 0.95
+
+# Table S6
+emtrends(leadership_model, ~ season, var = "betweenness_log")
+
+# season betweenness_log.trend lower.HPD upper.HPD
+# autumn              -0.00388   -0.0200    0.0130
+# spring               0.00838   -0.0114    0.0263
+# summer               0.00265   -0.0162    0.0212
+# winter               0.00121   -0.0106    0.0129
+# 
+# Results are averaged over the levels of: species, age_in_2020 
+# Point estimate displayed: median 
+# HPD interval probability: 0.95 
+
 
 
 # 5) Extract flock sizes in each season -------------------------------------------------------------------
 
-colnames(network.pos.all.seasons)
-network.pos.all.seasons %>%
-  dplyr::group_by(season) %>%
-  dplyr::filter(flock_size >= 2) %>%
-  dplyr::summarise(num_groups = n_distinct(group))
-  
-# # A tibble: 4 × 2
-# season num_groups
-# <fct>       <int>
-#   1 autumn        860
-# 2 spring       1453
-# 3 summer       1223
-# 4 winter       2268
+length(unique(network.pos.all.seasons.sub$PIT))
+# 231
+length(unique(network.pos.all.seasons.sub$PIT[network.pos.all.seasons.sub$species==
+                                            "GRETI"]))
+# 142
 
-#how many individuals within each flock in each season when min flock size is 2?
+length(unique(network.pos.all.seasons.sub$PIT[network.pos.all.seasons.sub$species==
+                                                "BLUTI"]))
+
+
+length(unique(network.pos.all.seasons.sub$PIT[network.pos.all.seasons.sub$species==
+                                                "MARTI"]))
+# 15
+
+length(unique(network.pos.all.seasons.sub$PIT[network.pos.all.seasons.sub$species==
+                                                "NUTHA"]))
+# 9 
+
+
+# by season
+length(unique(network.pos.all.seasons.sub$PIT[network.pos.all.seasons.sub$season==
+                                                "summer"]))
+# 96
+length(unique(network.pos.all.seasons.sub$PIT[network.pos.all.seasons.sub$season==
+                                                "autumn"]))
+# 71
+
+length(unique(network.pos.all.seasons.sub$PIT[network.pos.all.seasons.sub$season==
+                                                "winter"]))
+# 175
+length(unique(network.pos.all.seasons.sub$PIT[network.pos.all.seasons.sub$season==
+                                                "spring"]))
+# 119
+
+
+#how many flocks there are in each season
+#All groups contain at least 2 individuals
+
+network.pos.all.seasons.sub %>%
+  dplyr::group_by(season) %>%
+  dplyr::summarise(num_groups = n_distinct(group))
+
+# season num_groups
+# <chr>       <int>
+#   1 autumn        383
+# 2 spring        472
+# 3 summer        409
+# 4 winter       1545
+
+383+472+409+1545
+# 2809
+
+#how many individuals within each flock in each season?
 network.pos.all.seasons.sub %>%
   filter(season == "summer", flock_size >= 2) %>%
   distinct(group, flock_size, season) %>%
@@ -1122,7 +1074,7 @@ network.pos.all.seasons.sub %>%
 # min_flock_size max_flock_size
 # 1              2             15
 
-network.pos.all.seasons %>%
+network.pos.all.seasons.sub %>%
   filter(season == "autumn", flock_size >= 2) %>%
   distinct(group, flock_size) %>%
   summarise(
@@ -1133,7 +1085,7 @@ network.pos.all.seasons %>%
 # min_flock_size max_flock_size
 # 1              2             10        
 
-network.pos.all.seasons %>%
+network.pos.all.seasons.sub %>%
   filter(season == "winter", flock_size >= 2) %>%
   distinct(group, flock_size) %>%
   summarise(
@@ -1144,7 +1096,7 @@ network.pos.all.seasons %>%
 # min_flock_size max_flock_size
 # 1              2             36
 
-network.pos.all.seasons %>%
+network.pos.all.seasons.sub %>%
   filter(season == "spring", flock_size >= 2) %>%
   distinct(group, flock_size) %>%
   summarise(
@@ -1156,98 +1108,9 @@ network.pos.all.seasons %>%
 # 1              2             22
 
 
-# 6) Extract number of birds in each season ------------------------------------------------------------------
-
-#number of birds, per season, per species in the whole dataset, even for flocks of 1 bird
-network.pos.all.seasons %>%
-  dplyr::filter(flock_size>=1) %>%
-  dplyr::group_by(season) %>%
-  dplyr::summarise(num_PIT = n_distinct(PIT))
-
-network.pos.all.seasons %>%
-  dplyr::filter(flock_size>=1) %>%
-  dplyr::group_by(season, species) %>%
-  dplyr::summarise(num_PIT = n_distinct(PIT))
-# autumn BLUTI        14
-# autumn GRETI        47
-# autumn MARTI         9
-# autumn NUTHA         3
-# spring BLUTI        43
-# spring GRETI        64
-# spring MARTI        10
-# spring NUTHA         5
-# summer BLUTI        12
-# summer GRETI        80
-# summer MARTI         7
-# summer NUTHA         6
-# winter BLUTI        48
-# winter GRETI       108
-# winter MARTI        13
-# winter NUTHA         6
-
-
-#number of birds per species, per season, 
-#   when flock_size min 2 and both types of species (territorial and non territorial) are present
-
-network.pos.all.seasons.sub %>%
-  dplyr::group_by(season) %>%
-  dplyr::summarise(num_PIT = n_distinct(PIT))
-# autumn      71
-# spring     119
-# summer     96
-# winter     175
-
-#Number of birds per species, per season
-network.pos.all.seasons.sub %>%
-  dplyr::group_by(species) %>%
-  dplyr::summarise(num_PIT = n_distinct(PIT))
-
-#Number juvenimes and adults of birds per species
-network.pos.all.seasons.sub %>%
-  dplyr::group_by(species, age_in_2020) %>%
-  dplyr::summarise(num_PIT = n_distinct(PIT))
 
 
 
-#number of flocks per season
-network.pos.all.seasons.sub %>%
-  dplyr::group_by(season) %>%
-  dplyr::summarise(num_group = n_distinct(group))
 
-#number of birds per season
-network.pos.all.seasons.sub %>%
-  dplyr::group_by(season, species) %>%
-  dplyr::summarise(num_PIT = n_distinct(PIT))
 
-#flock size in each season
-network.pos.all.seasons.sub %>%
-  filter(season == "autumn") %>%
-  distinct(group, flock_size) %>%
-  summarise(
-    min_flock_size = min(flock_size),
-    max_flock_size = max(flock_size)
-  )
 
-network.pos.all.seasons.sub %>%
-  filter(season == "winter") %>%
-  distinct(group, flock_size) %>%
-  summarise(
-    min_flock_size = min(flock_size),
-    max_flock_size = max(flock_size)
-  )
-
-network.pos.all.seasons.sub %>%
-  filter(season == "spring") %>%
-  distinct(group, flock_size) %>%
-  summarise(
-    min_flock_size = min(flock_size),
-    max_flock_size = max(flock_size)
-  )
-
-network.pos.all.seasons.sub %>%
-  filter(season == "summer") %>%
-  distinct(group, flock_size) %>%
-  summarise(
-    min_flock_size = min(flock_size),
-    max_flock_size = max(flock_size)
-  )
