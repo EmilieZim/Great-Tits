@@ -1,4 +1,9 @@
-# elephant: write the title of the paper and authors
+# Who shall lead now? Seasonal Leader-follower dynamics in mixed-species flock based on territoriality
+#Emilie Zimmer1 & Sonja Wild2†
+#1Department of Biology, Ecology and Evolution, University of Liège, Liège B-4020, Belgium
+#2Department of Environmental Science and Policy, University of California, Davis, CA, 95616, USA
+#† Corresponding author: swild@ucdavis.edu
+
 
 
 # 1) Data prep ------------------------------------------------------------
@@ -173,74 +178,37 @@ load("model output/model_territoriality_pca.RDA")
 # 2.4) Summary -------------------------------------------
 ###Extract the summary output into a table (Table S2)
 sum_mod <- summary(model_territoriality_pca)
+fixed_effects <- as.data.frame(sum_mod$fixed)
+fixed_effects <- tibble::rownames_to_column(fixed_effects, var = "Term")
+fixed_effects$Term <- c("Intercept", "Spring","Summer", "Winter",
+                        "Great tit", "Marsh tit", "Nuthatch",
+                        "Great tit x Spring", "Great tit x Summer", "Great tit x Winter",
+                        "Marsh tit x Spring", "Marsh tit x Summer","Marsh tit x Winter", 
+                        "Nuthatch x Spring","Nuthatch x Summer","Nuthatch x Winter" 
+                         )
+fixed_effects <- fixed_effects[, 1:(ncol(fixed_effects) - 2)]
+colnames(fixed_effects)
 
-#(fixed effects)
-terr_fixed_df <- as.data.frame(sum_mod$fixed)
 
-terr_fixed_df <- terr_fixed_df %>%
-  mutate(Term = rownames(terr_fixed_df)) %>%
-  select(Term, everything())
-
-#Better seperate the names of the Terms
-terr_fixed_df <- terr_fixed_df %>%
-  separate(Term, into = c("Response", "Term"), sep = "_", extra = "merge", fill = "right") %>%
-  mutate(
-    Response = case_when(
-      Response == "visitsperfeeder" ~ "Visits per feeder",
-      Response == "nuniquedays" ~ "Number of unique days",
-      TRUE ~ Response
-    )
-  )
-
-#change the names of the Terms
-terr_fixed_df <- terr_fixed_df %>%
-  rowwise() %>%    # Work on each row individually
-  mutate(Term = if_else(
-    Term == "Intercept", "Intercept",
-    if_else(
-      !grepl(":", Term), 
-      case_when(
-        Term == "seasonspring" ~ "Spring",
-        Term == "seasonsummer" ~ "Summer",
-        Term == "seasonwinter" ~ "Winter",
-        Term == "speciesGRETI" ~ "Great tit",
-        Term == "speciesMARTI" ~ "Marsh tit",
-        Term == "speciesNUTHA" ~ "Nuthatch",
-        TRUE ~ Term
-      ),
-      {
-        parts <- strsplit(Term, ":")[[1]]
-        recode_part <- function(x) {
-          x <- gsub("^season", "", x)
-          x <- gsub("^species", "", x)
-          switch(x,
-                 spring = "Spring",
-                 summer = "Summer",
-                 winter = "Winter",
-                 GRETI = "Great tit",
-                 MARTI = "Marsh tit",
-                 NUTHA = "Nuthatch",
-                 x
-          )
-        }
-        paste(sapply(parts, recode_part), collapse = ": ")
-      }
-    )
-  )) %>%
-  ungroup()
-
-#Select what goes into the table and make the table
-colnames(terr_fixed_df)
-terr_table <- terr_fixed_df %>%
-  select("Response", "Term", "Estimate", "Est.Error", "l-95% CI", "u-95% CI", "Rhat") %>%
+terr_table <- fixed_effects %>%
+  select("Term", "Estimate", "l-95% CI", "u-95% CI", "Rhat") %>%
   rename(
     Estimate = "Estimate",
-    Est_Error = "Est.Error",
     CI_Lower = "l-95% CI",
     CI_Upper = "u-95% CI",
     Rhat = Rhat
+  )%>%
+  mutate(
+    Odds = exp(Estimate),
+    CI_Lower_Odds = exp(CI_Lower),
+    CI_Upper_Odds = exp(CI_Upper)
   )
 
+terr_table <- terr_table %>%
+  dplyr::mutate(across(where(is.numeric), ~ round(.x, 2)))
+
+terr_table <- terr_table %>%
+  select("Term", "Odds", "CI_Lower_Odds", "CI_Upper_Odds", "Rhat")
 
 terr_table <- flextable(terr_table) %>%
   autofit()
@@ -249,7 +217,6 @@ terr_table <- flextable(terr_table) %>%
 doc <- read_docx()
 doc <- body_add_flextable(doc, value = terr_table)
 print(doc, target = "Plots and tables/model_territoriality_summary.docx")
-
 
 
 # 2.3) Model checks -------------------------------------------------------
@@ -284,7 +251,6 @@ territoriality_contrasts <- contrast(territoriality_emm, method = "pairwise")
 
 #emmeans within each season (Table S3)
 terr_season_emm <- emmeans(model_territoriality_pca, ~ species | season)
-
 terr_species_season_contrasts <- contrast(terr_season_emm, method = "pairwise")
 terr_species_season_contrasts
 
@@ -333,19 +299,36 @@ plot(terr_season_emm)
 #extracting the results to make a table
 terr_species_season_contrasts_df <- as.data.frame(terr_species_season_contrasts)
 head(terr_species_season_contrasts_df)
-terr_species_season_contrasts_df$odds <- exp(terr_species_season_contrasts_df$estimate)#gives the odds instead of log odds
 terr_emm_table <- terr_species_season_contrasts_df %>%
-  dplyr::select(contrast, season, estimate, lower.HPD, upper.HPD, odds)
+  dplyr::select(contrast, season, estimate, lower.HPD, upper.HPD)
 species_names <- c(
   "BLUTI" = "Blue tit",
   "GRETI" = "Great tit",
   "MARTI" = "Marsh tit",
   "NUTHA" = "Nuthatch")
-
+season_names <- c(
+  "autumn" = "Autumn",
+  "winter" = "Winter",
+  "spring" = "Spring",
+  "summer" = "Summer")
 
 terr_emm_table <- terr_emm_table %>%
-  mutate(contrast = str_replace_all(contrast, species_names))
-colnames(terr_emm_table) <- c("Contrast", "Season", "Estimate", "Lower_HPD", "Upper_HPD", "Odds")
+  rename(Contrast = "contrast",
+    Season = "season",
+    CI_Lower = "lower.HPD",
+    CI_Upper = "upper.HPD"
+  )%>%
+  mutate(
+    Odds = exp(estimate),
+    CI_Lower_Odds = exp(CI_Lower),
+    CI_Upper_Odds = exp(CI_Upper)
+  )
+terr_emm_table <- terr_emm_table%>%
+  select(c(Contrast, Season, Odds, CI_Lower_Odds, CI_Upper_Odds))
+terr_emm_table <- terr_emm_table %>%
+  mutate(Contrast = str_replace_all(Contrast, species_names))
+terr_emm_table <- terr_emm_table %>%
+  mutate(Season = str_replace_all(Season, season_names))
 
 terr_emm_table <- terr_emm_table %>%
   dplyr::mutate(across(where(is.numeric), ~ round(.x, 2)))
@@ -364,44 +347,6 @@ print(doc_pariwise_comparisons_terr, target = "Plots and tables/pairwise_contras
 # 2.5) Plot ---------------------------------------------------------------
 
 plot(conditional_effects(model_territoriality_pca))
-
-#extract predicted means and CI from the brm model
-# First response variable
-pred_visits <- fitted(
-  model_territoriality_pca,
-  resp = "visitsperfeeder",
-  newdata = expand.grid(
-    season = unique(territoriality_df$season),
-    species = unique(territoriality_df$species),
-    PIT = NA   # random effect set to population-level
-  ),
-  re_formula = NA,     # exclude random effects
-  summary = TRUE
-) %>%
-  as.data.frame() %>%
-  bind_cols(expand.grid(
-    season = unique(territoriality_df$season),
-    species = unique(territoriality_df$species)
-  ))
-
-# Second response variable
-pred_days <- fitted(
-  model_territoriality,
-  resp = "nuniquedays",
-  newdata = expand.grid(
-    season = unique(territoriality_df$season),
-    species = unique(territoriality_df$species),
-    PIT = NA
-  ),
-  re_formula = NA,
-  summary = TRUE
-) %>%
-  as.data.frame() %>%
-  bind_cols(expand.grid(
-    season = unique(territoriality_df$season),
-    species = unique(territoriality_df$species)
-  ))
-
 #my colors:
 my_colors <- c("spring" = "#56ae6c", 
                "summer" = "#8960b3", 
@@ -413,18 +358,30 @@ my_colors_sp <- c("BLUTI" = "#b94b75",
                   "MARTI" = "#7f64b9",
                   "NUTHA" = "#bb7438")
 
+pred_terr <- fitted(
+  model_territoriality_pca,
+  newdata = expand.grid(
+    season = unique(territoriality_df$season),
+    species = unique(territoriality_df$species),
+    PIT = NA   # random effect set to population-level
+  ),
+  re_formula = NA,   # exclude random effects
+  summary = TRUE
+) %>%
+  as.data.frame() %>%
+  bind_cols(expand.grid(
+    season = unique(territoriality_df$season),
+    species = unique(territoriality_df$species)
+  ))
+
 #change the order of the levels within the season and change the name
-pred_visits$season <- factor(pred_visits$season,
-                             levels = c("summer", "spring", "autumn", "winter"),
-                             labels = c("Summer", "Spring", "Autumn", "Winter"))
-pred_days$season <- factor(pred_days$season,
+pred_terr$season <- factor(pred_terr$season,
                              levels = c("summer", "spring", "autumn", "winter"),
                              labels = c("Summer", "Spring", "Autumn", "Winter"))
 
-#the two plots
-pred_visits$species <- factor(pred_visits$species,
+pred_terr$species <- factor(pred_terr$species,
                               levels = c("BLUTI", "GRETI", "MARTI", "NUTHA"))
-p1 <- ggplot(pred_visits, aes(x = season, y = Estimate,
+ggplot(pred_terr, aes(x = season, y = Estimate,
                               color = species, group = species,
                               shape = species)) +
   geom_point(position = position_dodge(width = 0.4), size = 3) +
@@ -445,41 +402,11 @@ p1 <- ggplot(pred_visits, aes(x = season, y = Estimate,
                "NUTHA" = "Nuthatches"
                )
   ) +
-  labs(y = "Estimated visits", x = "") +
-  theme_minimal()
+  labs(y = "PC1 score for Territoriality", x = "") +
+  theme_minimal() + theme(legend.title = element_blank())
 
-# Second plot
-p2 <- ggplot(pred_days, aes(x = season, y = Estimate,
-                            color = species, group = species,
-                            shape = species)) +
-  geom_point(position = position_dodge(width = 0.4), size = 3) +
-  geom_errorbar(aes(ymin = Q2.5, ymax = Q97.5),
-                position = position_dodge(width = 0.4), width = 0.2) +
-  scale_shape_manual(
-    values = c("BLUTI" = 16, "GRETI" = 18, "MARTI" = 15, "NUTHA" = 17),
-    labels = c("BLUTI" = "Blue tits",
-               "GRETI" = "Great tits",
-               "MARTI" = "Marsh tits",
-               "NUTHA" = "Nuthatches")
-  ) +
-  scale_color_manual(
-    values = my_colors_sp,
-    labels = c("BLUTI" = "Blue tits",
-               "GRETI" = "Great tits",
-               "MARTI" = "Marsh tits",
-               "NUTHA" = "Nuthatches")
-  ) +
-  labs(y = "Estimated days", x = "") +
-  theme_minimal()
+ggsave(file="Plots and tables/plot_territoriality_sp_season.tiff", width=8.5, height=6.5, bg = "white")
 
-#plot plot1 and2 together
-ggarrange(
-  p1, p2,
-  labels = c("A", "B"),
-  ncol = 2, nrow = 1,
-  common.legend = TRUE,
-  legend = "bottom"
-)
 
 # 3) Leadership probability -----------------------------------------------
 
@@ -615,44 +542,46 @@ R2 <- performance::r2_bayes(leadership_model)
 
 # 3.4) Summary table ------------------------------------------------------
 
-
 ##make a table with the summary (Table S4)
 summary_leadership_model <- summary(leadership_model)
 fixed_effects <- as.data.frame(summary_leadership_model$fixed)
 fixed_effects <- tibble::rownames_to_column(fixed_effects, var = "Term")
-fixed_effects$Term <- c("Intercept", "Great tit", "Marsh tit", "Nuthatch",
-                   "Spring","Summer", "Winter",
-                   "Age (Juvenile)", "Betweenness", "Degree",
-                   "Great tit x Spring", "Marsh tit x Spring", "Nuthatch x Spring", 
-                   "Great tit x Summer", "Marsh tit x Summer", "Nuthatch x Summer", 
-                   "Great tit x Winter", "Marsh tit x Winter", "Nuthatch x Winter", 
-                   "Spring x Age(Juvenile)", "Summer x Age(Juvenile)", "Winter x Age(Juvenile)" )
+fixed_effects$Term <- c("Intercept", "Spring","Summer", "Winter",
+                   "Great tit", "Marsh tit", "Nuthatch",
+                   "Degree", "Betweenness", "Age (Juvenile)",  
+                   "Great tit x Spring", "Great tit x Summer", "Great tit x Winter",
+                   "Marsh tit x Spring", "Marsh tit x Summer", "Marsh tit x Winter",
+                   "Nuthatch x Spring", "Nuthatch x Summer","Nuthatch x Winter", 
+                   "Degree x Spring", "Degree x Summer", "Degree x Winter",   
+                   "Betweenness x Spring", "Betweenness x Summer", "Betweenness x Winter",   
+                   "Age(Juvenile) x Spring", "Age(Juvenile) x Summer", "Age(Juvenile) x Winter" )
 fixed_effects <- fixed_effects[, 1:(ncol(fixed_effects) - 2)]
 colnames(fixed_effects)
-
-fixed_effects <- fixed_effects %>%
+lead_table <- fixed_effects %>%
+  select("Term", "Estimate", "l-95% CI", "u-95% CI", "Rhat") %>%
+  rename(
+    CI_Lower = "l-95% CI",
+    CI_Upper = "u-95% CI",
+    Rhat = Rhat
+  )%>%
   mutate(
-    Odds = exp(Estimate),       # convert log-odds to odds ratios first
-    Odds = round(Odds, 2),  # round Estimate
-    # Round other numeric columns except Estimate
-    across(
-      .cols = where(is.numeric) & !all_of("Odds"), 
-      ~ round(.x, 2)
-    )
+    Odds = exp(Estimate),
+    CI_Lower_Odds = exp(CI_Lower),
+    CI_Upper_Odds = exp(CI_Upper)
   )
 
-library(flextable)
+lead_table <- lead_table %>%
+  dplyr::mutate(across(where(is.numeric), ~ round(.x, 2)))
 
-flextable_table <- fixed_effects %>%
-  flextable() %>%
-  autofit() %>%
-  set_caption("Summary of Fixed Effects from the final leadership Model")
+lead_table <- lead_table %>%
+  select("Term", "Odds", "CI_Lower_Odds", "CI_Upper_Odds", "Rhat")
 
-library(officer)
+lead_table <- flextable(lead_table) %>%
+  autofit()
 
-doc_leadership_model <- read_docx() %>%
-  body_add_flextable(flextable_table)
-
+# 6. Export to Word
+doc <- read_docx()
+doc_leadership_model <- body_add_flextable(doc, value = lead_table)
 print(doc_leadership_model, target = "Plots and tables/fixed_effects_final_leadership_model.docx")
 
 
@@ -671,20 +600,27 @@ my_colors <- c("spring" = "#56ae6c",
                "summer" = "#8960b3", 
                "winter" = "#b0923b", 
                "autumn" = "#ba495b")
+
+my_colors_bis <- c("Spring" = "#56ae6c", 
+               "Summer" = "#8960b3", 
+               "Winter" = "#b0923b", 
+               "Autumn" = "#ba495b")
+
+
 my_colors_sp <- c("BLUTI" = "#b94b75", 
                   "GRETI" = "#72ac5c", 
                   "MARTI" = "#7f64b9", 
                   "NUTHA" = "#bb7438")
 
-my_colors_age <- c("adult" = "#9a5ea1", 
-                   "juvenile" = "#98823c")
+my_colors_age <- c("Adult" = "#9a5ea1", 
+                   "Juvenile" = "#98823c")
 
 
 ggarrange(
   
   #First plot: interaction between species and season
   {
-    p <- leadership_model_conditional_effects$`species:season`
+    p <- leadership_model_conditional_effects$`season:species`
     for (i in seq_along(p$layers)) {
       if (inherits(p$layers[[i]]$geom, "GeomPoint")) {
         p$layers[[i]]$aes_params$size <- 2.5  # smaller points
@@ -711,16 +647,33 @@ ggarrange(
         limits = c("summer", "autumn", "winter", "spring"),
         labels = c("summer" = "Summer", "autumn" = "Autumn", "winter" = "Winter", "spring" = "Spring")
       ) +
-      labs(x = "Season", y = "Leadership probability") +
-      ylim(c(0.0, 0.9)) +
-      theme(
-        legend.position = "bottom",
-        legend.title = element_text(),
-        axis.title.x = element_blank()
-      )
+      labs(x = "", y = "Leadership probability") +
+      theme_bw() +
+      theme(legend.position = "none") +
+          coord_cartesian()
+      
   },
   
-  # Second plot: interaction between season and age
+   # Second plot: interaction between season and betweenness (continuous)
+  {
+    ce_between <- leadership_model_conditional_effects$`betweenness_log:season`$data
+    ce_between$season <- factor(ce_between$season, 
+                               levels = c("summer", "autumn", "winter", "spring"),
+                               labels = c("Summer", "Autumn", "Winter", "Spring"))
+    
+    ggplot(ce_between, aes(x = scale(betweenness_log), y = estimate__, color = season, fill = season)) +
+      geom_ribbon(aes(ymin = lower__, ymax = upper__), alpha = 0.2, color = NA) +
+      geom_line(size = 1) +
+      scale_color_manual(values = my_colors_bis) +
+      scale_fill_manual(values = my_colors_bis) +
+      labs(x = "Betweenness centrality", y = "") +
+      theme_bw() +
+      theme(legend.position = "none") +
+      coord_cartesian() 
+      
+  },
+  
+  # Third plot: interaction between season and age
   {
     p <- leadership_model_conditional_effects$`season:age_in_2020`
     for (i in seq_along(p$layers)) {
@@ -728,62 +681,50 @@ ggarrange(
         p$layers[[i]]$aes_params$size <- 2.5
       }
     }
-    p +
-      labs(y = "Leadership probability") +
-      ylim(c(0.0, 0.9)) +
-      theme(
-        legend.background = element_blank(),
-        legend.position = "bottom",
-        legend.title = element_blank(),
-        axis.title.x = element_blank()
-      ) +
-      scale_fill_manual(
-        values = my_colors_age,
-        breaks = c("adult", "juvenile"),
-        labels = c("Adults", "Juveniles")
-      ) +
-      scale_color_manual(
-        values = my_colors_age,
-        breaks = c("adult", "juvenile"),
-        labels = c("Adults", "Juveniles")
-      ) +
-      scale_x_discrete(
-        limits = c("summer", "autumn", "winter", "spring"),
-        labels = c("summer" = "Summer", "autumn" = "Autumn", "winter" = "Winter", "spring" = "Spring")
-      )
-  },
-  #Third plot : betweenness centrality
-  {
-    ce <- conditional_effects(leadership_model, effects = "betweenness")$betweenness
-    
-    ggplot(ce, aes(x = betweenness, y = estimate__)) +
-      geom_ribbon(aes(ymin = lower__, ymax = upper__), fill = "grey80") +
-      geom_line(color = "black", size= 0.5) +
-      labs(x = "Betweenness centrality", y = "") +
-      ylim(0.0, 0.9) +
-      theme_bw()
+    p$data$season <- factor(p$data$season,
+                            levels = c("summer", "autumn", "winter", "spring"),
+                            labels = c("Summer", "Autumn", "Winter", "Spring"))
+    p$data$age_in_2020 <- factor(p$data$age_in_2020,
+                                 levels = c("adult", "juvenile"),
+                                 labels = c("Adult", "Juvenile"))
+    p +  aes(x = season, y = estimate__, color = age_in_2020, fill = age_in_2020) +
+      geom_ribbon(aes(ymin = lower__, ymax = upper__), alpha = 0.2, color = NA) +
+      geom_line(size = 1) +
+      scale_color_manual(values = my_colors_age) +
+      scale_fill_manual(values = my_colors_age) +
+      labs(x = "", y = "Leadership probability") +
+      theme_bw() +
+      theme(legend.position = "bottom", legend.title = element_blank()) + 
+      coord_cartesian()
+      
+      
   },
   
- 
-  
-  #Fourth plot: degree centrality
+  # fourth plot: interaction between season and degree
   {
-    ce_degree <- leadership_model_conditional_effects$degree$data
-    
-      ggplot(ce_degree, aes(x = degree, y = estimate__)) +
-      geom_ribbon(aes(ymin = lower__, ymax = upper__), fill = "grey80", alpha = 0.5) +  # CI ribbon in grey
-      geom_line(color = "black", size = 0.5) +                                          # main curve in black
+    ce_degree <- leadership_model_conditional_effects$`degree_log:season`$data 
+    ce_degree$season <- factor(ce_degree$season, 
+                               levels = c("summer", "autumn", "winter", "spring"),
+                               labels = c("Summer", "Autumn", "Winter", "Spring"))
+    ggplot(ce_degree, aes(x = scale(degree_log), y = estimate__, color = season, fill = season)) +
+      geom_ribbon(aes(ymin = lower__, ymax = upper__), alpha = 0.2, color = NA) +
+      geom_line(size = 1) +
+      scale_color_manual(values = my_colors_bis) +
+      scale_fill_manual(values = my_colors_bis) +
       labs(x = "Degree centrality", y = "") +
-      ylim(0, 0.9) +
-      theme_bw()
+      theme_bw() +
+      theme(
+        legend.position = "bottom",
+        legend.title = element_blank() ) +
+      coord_cartesian()
   },
   
-  labels = c("a", "b", "c", "d"),
+  labels = c("a", "c", "b", "d"),
   ncol = 2, nrow = 2,
+  widths = c(1, 1),   
+  heights = c(1, 1),
   common.legend = FALSE
 )
-
-
 
 ggsave(file="Plots and tables/plot_leadership_model.tiff", width=8.5, height=6.5)
 
@@ -794,37 +735,7 @@ ggsave(file="Plots and tables/plot_leadership_model.tiff", width=8.5, height=6.5
 
 
 # 3.6) Compute species comparison -----------------------------------------
-
-# the estimates are expressed in their logit scale so here transform them into odds ratio's
-exp(fixef(leadership_model))
-
-# Estimate Est.Error       Q2.5       Q97.5
-# Intercept                        0.21954653  1.296610 0.13148467  0.36442835
-# speciesGRETI                     0.25333936  1.342641 0.14214456  0.45192419
-# speciesMARTI                     0.21238314  1.524381 0.09410808  0.49328314
-# speciesNUTHA                     1.44262604  1.639034 0.55541081  3.90218636
-# seasonspring                     0.34856939  1.219697 0.23449389  0.51374076
-# seasonsummer                     0.86218210  1.363427 0.46256429  1.58637189
-# seasonwinter                     1.15124528  1.235557 0.75726198  1.71986970
-# age_in_2020juvenile              1.77587714  1.287824 1.07954133  2.92453095
-# scalebetweenness                 1.40192349  1.058989 1.25358433  1.57062800
-# scaledegree                      0.71499829  1.068001 0.62850028  0.81316422
-# speciesGRETI:seasonspring        2.94239085  1.289040 1.78123748  4.80538230
-# speciesMARTI:seasonspring        7.71348460  1.323201 4.39813226 13.27928055
-# speciesNUTHA:seasonspring        1.11034565  1.409924 0.56118100  2.14903043
-# speciesGRETI:seasonsummer        0.02955643  1.446962 0.01438641  0.06194623
-# speciesMARTI:seasonsummer        7.27718471  1.444899 3.55675991 15.08416144
-# speciesNUTHA:seasonsummer        0.53579837  1.470618 0.25291195  1.15419533
-# speciesGRETI:seasonwinter        0.93588364  1.262840 0.59323247  1.48120936
-# speciesMARTI:seasonwinter        2.66748642  1.264051 1.67629173  4.18104360
-# speciesNUTHA:seasonwinter        1.21428541  1.295821 0.72590606  2.00411703
-# seasonspring:age_in_2020juvenile 1.16854871  1.253146 0.75449731  1.83194899
-# seasonsummer:age_in_2020juvenile 0.23856669  1.287525 0.14541129  0.39603645
-# seasonwinter:age_in_2020juvenile 0.78809046  1.222375 0.53034699  1.16118090
-
-
 # in our model, blue tits are the baseline species to which all others are compared. We would like to compute comparisons between all species. 
-
 
 # Compute marginal means for the species variable
 species_emm <- emmeans(leadership_model, ~ species)
@@ -852,42 +763,42 @@ species_season_emm <- emmeans(leadership_model, ~ species | season)
 species_season_contrasts <- contrast(species_season_emm, method = "pairwise")
 species_season_contrasts
 
-# season = autumn:
-#   contrast      estimate lower.HPD upper.HPD
-# BLUTI - GRETI -0.03568    -0.564    0.4413
-# BLUTI - MARTI -0.26155    -0.728    0.1964
-# BLUTI - NUTHA -0.29950    -0.795    0.1917
-# GRETI - MARTI -0.23329    -0.598    0.1002
-# GRETI - NUTHA -0.26999    -0.611    0.1030
-# MARTI - NUTHA -0.03580    -0.354    0.2820
-# 
-# season = spring:
-#   contrast      estimate lower.HPD upper.HPD
-# BLUTI - GRETI  0.12802    -0.142    0.3849
-# BLUTI - MARTI -0.04014    -0.309    0.2240
-# BLUTI - NUTHA  0.04221    -0.317    0.4211
-# GRETI - MARTI -0.16534    -0.450    0.1059
-# GRETI - NUTHA -0.08734    -0.448    0.2581
-# MARTI - NUTHA  0.07913    -0.301    0.4756
-# 
-# season = summer:
-#   contrast      estimate lower.HPD upper.HPD
-# BLUTI - GRETI -0.02122    -0.562    0.5748
-# BLUTI - MARTI -0.23873    -0.859    0.2721
-# BLUTI - NUTHA -0.32136    -0.907    0.2457
-# GRETI - MARTI -0.22466    -0.530    0.1098
-# GRETI - NUTHA -0.30459    -0.644    0.0504
-# MARTI - NUTHA -0.08050    -0.400    0.2392
-# 
-# season = winter:
-#   contrast      estimate lower.HPD upper.HPD
-# BLUTI - GRETI  0.00481    -0.155    0.1652
-# BLUTI - MARTI -0.32082    -0.500   -0.1341
-# BLUTI - NUTHA -0.28407    -0.512   -0.0489
-# GRETI - MARTI -0.32636    -0.483   -0.1704
-# GRETI - NUTHA -0.29043    -0.501   -0.0818
-# MARTI - NUTHA  0.03690    -0.182    0.2560
-# 
+#season = autumn:
+#  contrast      estimate lower.HPD upper.HPD
+#BLUTI - GRETI -0.02760    -0.584    0.4692
+#BLUTI - MARTI -0.28718    -0.804    0.1805
+#BLUTI - NUTHA -0.34066    -0.884    0.1616
+#GRETI - MARTI -0.26045    -0.670    0.1606
+#GRETI - NUTHA -0.31037    -0.756    0.1053
+#MARTI - NUTHA -0.05172    -0.380    0.2600
+
+#season = spring:
+#  contrast      estimate lower.HPD upper.HPD
+#BLUTI - GRETI  0.14791    -0.111    0.4240
+#BLUTI - MARTI  0.01100    -0.269    0.2914
+#BLUTI - NUTHA  0.08813    -0.269    0.4844
+#GRETI - MARTI -0.13594    -0.437    0.1470
+#GRETI - NUTHA -0.05708    -0.411    0.3162
+#MARTI - NUTHA  0.08007    -0.304    0.4896
+
+#season = summer:
+#  contrast      estimate lower.HPD upper.HPD
+#BLUTI - GRETI -0.02218    -0.595    0.5525
+#BLUTI - MARTI -0.25543    -0.801    0.3250
+#BLUTI - NUTHA -0.31477    -0.858    0.2646
+#GRETI - MARTI -0.23042    -0.550    0.0924
+#GRETI - NUTHA -0.29594    -0.649    0.0811
+#MARTI - NUTHA -0.06508    -0.387    0.2792
+
+#season = winter:
+#  contrast      estimate lower.HPD upper.HPD
+#BLUTI - GRETI  0.00118    -0.156    0.1611
+#BLUTI - MARTI -0.32215    -0.516   -0.1379
+#BLUTI - NUTHA -0.29473    -0.544   -0.0622
+#GRETI - MARTI -0.32612    -0.483   -0.1580
+#GRETI - NUTHA -0.29676    -0.512   -0.0776
+#MARTI - NUTHA  0.02786    -0.203    0.2526
+
 # Results are averaged over the levels of: age_in_2020 
 # Point estimate displayed: median 
 # Results are given on the log (not the response) scale. 
@@ -904,41 +815,51 @@ plot(species_season_emm)
 # Extract contrasts as a data frame
 species_season_contrasts_df <- as.data.frame(species_season_contrasts)
 head(species_season_contrasts_df)
-# you get from log odds to odds by expontiating:
-exp(species_season_contrasts_df$estimate) #thus odds are the estimates
-# an odds ratio of 1.67 means that e.g. BLUTI are 1.67 times more likely to be the leader compared to GRETI
-# If one were interested in probabilities for a certain species to be a leader, you calculate as: probability = exp(log odds) / (1 + exp(log odds)) = exp(estimate)/(1+ exp(estimate))
-species_season_contrasts_df$odds <- exp(species_season_contrasts_df$estimate)
 
-emm_table <- species_season_contrasts_df %>%
-  dplyr::select(contrast, season, estimate, lower.HPD, upper.HPD, odds) #I make a table so I can make the calculations
-#the percentage
-emm_table$prob_emm <- (exp(emm_table$estimate) / (1 + exp(emm_table$estimate)))*100
-
-#extract the dataframe into a table for Word
+head(species_season_contrasts_df)
+lead_sp_emm_table <- species_season_contrasts_df %>%
+  dplyr::select(contrast, season, estimate, lower.HPD, upper.HPD)
 species_names <- c(
   "BLUTI" = "Blue tit",
   "GRETI" = "Great tit",
   "MARTI" = "Marsh tit",
-  "NUTHA" = "Nuthatch"
-)
-library(stringr)
-emm_table <- emm_table %>%
-  mutate(contrast = str_replace_all(contrast, species_names))
-colnames(emm_table) <- c("Contrast", "Season", "Estimate", "Lower_HPD", "Upper_HPD", "Odds", "Probability")
-emm_table <- emm_table %>%
+  "NUTHA" = "Nuthatch")
+season_names <- c(
+  "autumn" = "Autumn",
+  "winter" = "Winter",
+  "spring" = "Spring",
+  "summer" = "Summer")
+
+lead_sp_emm_table <- lead_sp_emm_table %>%
+  rename(Contrast = "contrast",
+         Season = "season",
+         CI_Lower = "lower.HPD",
+         CI_Upper = "upper.HPD"
+  )%>%
+  mutate(
+    Odds = exp(estimate),
+    CI_Lower_Odds = exp(CI_Lower),
+    CI_Upper_Odds = exp(CI_Upper)
+  )
+lead_sp_emm_table <- lead_sp_emm_table%>%
+  select(c(Contrast, Season, Odds, CI_Lower_Odds, CI_Upper_Odds))
+lead_sp_emm_table <- lead_sp_emm_table %>%
+  mutate(Contrast = str_replace_all(Contrast, species_names))
+lead_sp_emm_table <- lead_sp_emm_table %>%
+  mutate(Season = str_replace_all(Season, season_names))
+
+terr_emm_table <- terr_emm_table %>%
   dplyr::mutate(across(where(is.numeric), ~ round(.x, 2)))
 
-pairwise_table <- flextable(emm_table) %>%
+lead_sp_pairwise_table <- flextable(terr_emm_table) %>%
   autofit() %>%
-  set_caption("Pairwise Contrasts of Species by Season")
+  set_caption("Leaderschip Pairwise Contrasts of Species by Season")
 
-# Export to Word (optional)
-library(officer)
-doc_pariwise_comparisons <- read_docx() %>%
-  body_add_flextable(pairwise_table)
 
-print(doc_pariwise_comparisons, target = "Plots and tables/pairwise_contrasts_leadership_model.docx")
+doc_pariwise_comparisons_lead_sp <- read_docx() %>%
+  body_add_flextable(lead_sp_pairwise_table)
+
+print(doc_pariwise_comparisons_lead_sp, target = "Plots and tables/pairwise_contrasts_sp_leadership_model.docx")
 
 # for age
 
@@ -979,9 +900,61 @@ age_season_contrasts
 # Results are given on the log (not the response) scale. 
 # HPD interval probability: 0.95 
 
+#extract the associated table
+age_season_contrasts_df <- as.data.frame(age_season_contrasts)
+
+lead_age_emm_table <- age_season_contrasts_df %>%
+  dplyr::select(contrast, season, estimate, lower.HPD, upper.HPD)
+species_names <- c(
+  "BLUTI" = "Blue tit",
+  "GRETI" = "Great tit",
+  "MARTI" = "Marsh tit",
+  "NUTHA" = "Nuthatch")
+season_names <- c(
+  "autumn" = "Autumn",
+  "winter" = "Winter",
+  "spring" = "Spring",
+  "summer" = "Summer")
+
+lead_age_emm_table <- lead_age_emm_table %>%
+  rename(Contrast = "contrast",
+         Season = "season",
+         CI_Lower = "lower.HPD",
+         CI_Upper = "upper.HPD"
+  )%>%
+  mutate(
+    Odds = exp(estimate),
+    CI_Lower_Odds = exp(CI_Lower),
+    CI_Upper_Odds = exp(CI_Upper)
+  )
+
+age_names <- c(
+  "adult" = "Adult",
+  "juvenile" = "Juvenile")
+
+lead_age_emm_table <- lead_age_emm_table%>%
+  select(c(Contrast, Season, Odds, CI_Lower_Odds, CI_Upper_Odds))
+lead_age_emm_table <- lead_age_emm_table %>%
+  mutate(Contrast = str_replace_all(Contrast, age_names))
+lead_age_emm_table <- lead_age_emm_table %>%
+  mutate(Season = str_replace_all(Season, season_names))
+
+lead_age_emm_table <- lead_age_emm_table %>%
+  dplyr::mutate(across(where(is.numeric), ~ round(.x, 2)))
+
+lead_age_pairwise_table <- flextable(lead_age_emm_table) %>%
+  autofit() %>%
+  set_caption("Leaderschip Pairwise Contrasts of Age class by Season")
+
+
+doc_pariwise_comparisons_lead_age <- read_docx() %>%
+  body_add_flextable(lead_age_pairwise_table)
+
+print(doc_pariwise_comparisons_lead_age, target = "Plots and tables/pairwise_contrasts_age_leadership_model.docx")
+
 
 # 3.7) Trends for continuous variable (Table S7)
-emtrends(leadership_model, ~ season, var = "degree_log")
+trends_degree <- emtrends(leadership_model, ~ season, var = "degree_log")
 
 # season degree_log.trend lower.HPD upper.HPD
 # autumn           0.1083   -0.0832     0.303
@@ -993,8 +966,31 @@ emtrends(leadership_model, ~ season, var = "degree_log")
 # Point estimate displayed: median 
 # HPD interval probability: 0.95
 
+#extract the associated table
+trends_degree_df <- as.data.frame(trends_degree)
+colnames(trends_degree_df)
+trends_degree_table <- trends_degree_df %>%
+  dplyr::select(season, degree_log.trend, lower.HPD, upper.HPD)
+trends_degree_table <- trends_degree_table %>%
+  rename(Season = "season",
+         Trend = "degree_log.trend",
+         CI_Lower = "lower.HPD",
+         CI_Upper = "upper.HPD"
+  )
+
+
+trends_degree_table <- trends_degree_table %>%
+  dplyr::mutate(across(where(is.numeric), ~ round(.x, 3)))
+
+trends_degree_table <- flextable(trends_degree_table)
+doc_Trend_degree <- read_docx() %>%
+  body_add_flextable(trends_degree_table)
+
+print(doc_Trend_degree, target = "Plots and tables/degree_trends.docx")
+
+
 # Table S6
-emtrends(leadership_model, ~ season, var = "betweenness_log")
+trends_betweenness <- emtrends(leadership_model, ~ season, var = "betweenness_log")
 
 # season betweenness_log.trend lower.HPD upper.HPD
 # autumn              -0.00388   -0.0200    0.0130
@@ -1006,6 +1002,28 @@ emtrends(leadership_model, ~ season, var = "betweenness_log")
 # Point estimate displayed: median 
 # HPD interval probability: 0.95 
 
+#extract the associated table
+#extract the associated table
+trends_betweenness_df <- as.data.frame(trends_betweenness)
+colnames(trends_betweenness_df)
+trends_betweenness_table <- trends_betweenness_df %>%
+  dplyr::select(season, betweenness_log.trend, lower.HPD, upper.HPD)
+
+trends_betweenness_table <- trends_betweenness_table %>%
+  rename(Season = "season",
+         Trend = "betweenness_log.trend",
+         CI_Lower = "lower.HPD",
+         CI_Upper = "upper.HPD"
+  )
+
+trends_betweenness_table <- trends_betweenness_table %>%
+  dplyr::mutate(across(where(is.numeric), ~ round(.x, 3)))
+
+trends_betweenness_table <- flextable(trends_betweenness_table)
+doc_Trend_betweenness <- read_docx() %>%
+  body_add_flextable(trends_betweenness_table)
+
+print(doc_Trend_betweenness, target = "Plots and tables/betweenness_trends.docx")
 
 
 # 5) Extract flock sizes in each season -------------------------------------------------------------------
