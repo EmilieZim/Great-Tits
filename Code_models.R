@@ -1,4 +1,4 @@
-# Who shall lead now? Seasonal Leader-follower dynamics in mixed-species flock based on territoriality
+# Seasonal variation in leadership in mixed-species flocks of territorial and non-territorial birds
 #Emilie Zimmer1 & Sonja Wild2†
 #1Department of Biology, Ecology and Evolution, University of Liège, Liège B-4020, Belgium
 #2Department of Environmental Science and Policy, University of California, Davis, CA, 95616, USA
